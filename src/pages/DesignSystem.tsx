@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { Logo } from '../components/Logo'
 import {
-  IconCalendar, IconCamera, IconClock, IconEye, IconFilter, IconFolder, IconGrip, IconInfo, IconLink,
+  IconCaret, IconCalendar, IconCamera, IconClock, IconEye, IconFilter, IconFolder, IconGrip, IconInfo, IconLink,
   IconMic, IconPause, IconPlay, IconProjects, IconReply, IconRestart, IconSearch, IconSend, IconWindow,
 } from '../components/icons'
 import './design-system-board.css'
@@ -24,21 +24,22 @@ const colors: [string, string, string][] = [
   ['--c-white', '#FFFFFF', 'Boutons du panneau et de la barre'],
   ['--c-green', '#007500', 'Action principale, temps des commentaires'],
   ['--c-orange', '#F24822', 'Prénom / client souligné'],
-  ['--c-muted-1', '#6F6F6F', 'Date relative des cartes (« 11 Day »)'],
+  ['--c-muted-1', '#6F6F6F', 'Date relative des cartes'],
   ['--c-muted-2', '#878787', 'Placeholder commentaire'],
   ['--c-muted-3', '#929292', 'Placeholder recherche'],
   ['--c-muted-4', '#A3A3A3', 'Ancienneté, « Répondre », « Description »'],
-  ['--c-muted-5', '#B1B1B1', '« Publier par … - 1 day ago »'],
+  ['--c-muted-5', '#B1B1B1', '« Publié par … - Il y a 1 jour »'],
 ]
 
 const type: [string, string, string, number?][] = [
-  ['--fs-display', '20 px', 'Bienvenue dans Visions,'],
-  ['--fs-title', '18 px', 'Avancée sur le patterns'],
-  ['--fs-body', '14 px', 'Tous les projets · Sans titre 1 · Window · Nom du client'],
-  ['--fs-tab', '13 px', 'Récents  Client 1  8 Vidéos'],
-  ['--fs-meta', '12 px', '26/03/2026 · Publier par Izenn Kra · 8 vues'],
-  ['--fs-timer', '11 px', '0:00', 600],
-  ['--fs-micro', '10 px', 'Clients'],
+  ['--fs-title', '18 px', 'Bienvenue dans Visions, · Avancée sur le patterns'],
+  ['--fs-body', '14 px', 'Window · Nom du client · Répondre · Supprimer'],
+  ['--fs-ui', '13 px', 'Nouveau fichier · Tous les projets · Sans titre 1'],
+  ['--fs-meta', '12 px', 'Publié par Izenn Kra · 8 vues · Il y a 2h'],
+  ['--fs-tab', '11,5 px', 'Récents  Client 1  8 Vidéos'],
+  ['--fs-small', '11 px', '26/03/2026 · 0min · Il y a 11 jours'],
+  ['--fs-small', '11 px', '0:00', 600],
+  ['--fs-micro', '9 px', 'Clients'],
 ]
 
 const radii: [string, string, string][] = [
@@ -49,13 +50,14 @@ const radii: [string, string, string][] = [
 ]
 
 const spacing: [string, string][] = [
-  ['Barre latérale', 'x 32 px, largeur 246 px ; bouton vert à y 107, hauteur 40 ; 12 px puis recherche 40 px ; lignes 46 px ; filet actif 4 px'],
-  ['Zone centrale', 'débute à x 420 px ; marge droite 34 px ; titre à y 112 ; onglets y 153–176 ; filet y 198 ; grille y 221'],
-  ['Carte vidéo', '275 × 210 px, marge intérieure 7 px, vignette 145 px (rayon 6) ; 15 px entre colonnes ; pastille stats 40 px à 10 px dessous ; 22 px entre rangées'],
-  ['Panneau enregistreur', '217 px de large, marge 18 px ; options 181 × 48 px espacées de 16 px ; GO 85 px'],
-  ['Barre de contrôle', '72 px de large, marge 8 px ; On / Off 56 × 38 px ; chrono 42 × 25 ; boutons ronds 56 px ; 15 px entre éléments'],
-  ['Bulle caméra', '160 px, collée au coin bas gauche (0 px)'],
-  ['Pages vidéo', 'zone gauche 1000 px + panneau 410 px ; bloc vidéo à 29 px des bords, marge intérieure 27 px ; lecteur 16:9 ; panneau : marge 18 px, champ 233 × 128, bouton envoyer 128 px'],
+  ['Référence', 'toutes les mesures sont ramenées à une frame de 1440 px (le logo 58 × 22 sert d’étalon)'],
+  ['Barre latérale', 'x 29 px, largeur 222 px ; bouton vert à y 96, hauteur 37 ; 10 px puis recherche 37 px ; « Tous les projets » 37 px ; clients 42 px ; filet actif 4 px'],
+  ['Zone centrale', 'débute à x 378 px ; marge droite 30 px ; onglets 20 px de haut ; filet sous les onglets ; grille 20 px plus bas'],
+  ['Carte vidéo', '247 px minimum (4 colonnes à 1440 px, davantage sur écran plus large) × 189 px ; marge intérieure 6 px ; vignette 130 px (rayon 4) ; 13,5 px entre colonnes ; pastille stats 36 px à 9 px dessous ; 19 px entre rangées'],
+  ['Panneau enregistreur', '221 px de large, marge 18 px ; options 49 px de haut espacées de 16 px ; GO 87 px'],
+  ['Barre de contrôle', '73 px de large, marge 8 px ; On / Off 57 × 39 px ; chrono 43 × 25 ; boutons ronds 57 px ; 15 px entre éléments'],
+  ['Bulle caméra', '163 px, collée au coin bas gauche (0 px)'],
+  ['Pages vidéo', 'panneau commentaires 419 px, zone gauche le reste ; bloc vidéo à 30 px des bords, marge intérieure 28 px ; lecteur 16:9 ; panneau : marge 18 px, champ 131 px de haut, bouton envoyer 131 px'],
 ]
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -91,7 +93,7 @@ export default function DesignSystem() {
 
       <Section title="Typographie — PP Neue Montreal Regular (400)">
         {type.map(([v, size, sample, weight]) => (
-          <div key={v} className="dsb-type">
+          <div key={sample} className="dsb-type">
             <div className="dsb-meta dsb-type__label">{size}{weight ? ' · Semibold 600' : ''}<br />{v}</div>
             <div style={{ fontSize: `var(${v})`, fontWeight: weight ?? 400 }}>{sample}</div>
           </div>
@@ -120,7 +122,7 @@ export default function DesignSystem() {
         </table>
       </Section>
 
-      <Section title="Icônes — Phosphor « regular » (+ 3 dessinées : Filtre caméra, INFO, pause)">
+      <Section title="Icônes — Phosphor « bold » (+ 3 dessinées : Filtre caméra, INFO, pause)">
         <div className="dsb-row dsb-icons">
           {[
             [<IconProjects size={14} />, 'Tous les projets'], [<IconFolder size={14} />, 'Dossier client'],
@@ -138,17 +140,17 @@ export default function DesignSystem() {
       <Section title="Composants — Dashboard">
         <div className="dsb-row dsb-top">
           <div className="dsb-sidebar">
-            <button className="ds-btn-primary" style={{ width: '100%' }}>Nouveau fichier</button>
+            <button className="ds-btn-primary">Nouveau fichier</button>
             <div className="dsb-sidebar__panel">
-              <label className="ds-search"><IconSearch size={14} /><input placeholder="Recherche..." /></label>
-              <div className="ds-nav-item is-active"><IconProjects size={14} />Tous les projets</div>
+              <label className="ds-search"><IconSearch size={13} /><input placeholder="Recherche..." /></label>
+              <div className="ds-nav-item ds-nav-item--main is-active" style={{ marginTop: 5 }}><IconProjects size={14} />Tous les projets</div>
               <div className="dsb-sidebar__line" />
-              <div className="dsb-folder">▾ Clients</div>
-              <div className="ds-nav-item"><IconFolder size={14} />Client 1</div>
-              <div className="ds-nav-item"><IconFolder size={14} />Client 2</div>
+              <div className="ds-folder"><IconCaret />Clients</div>
+              <div className="ds-nav-item"><IconFolder size={14} className="ds-nav-item__folder" />Client 1</div>
+              <div className="ds-nav-item"><IconFolder size={14} className="ds-nav-item__folder" />Client 2</div>
             </div>
           </div>
-          <div>
+          <div className="dsb-card">
             <div className="dsb-display">Bienvenue dans Visions, <span className="ds-accent-link">Izenn</span></div>
             <div className="dsb-tabs">
               <span className="ds-tab is-active">Récents</span><span className="ds-tab">Client 1</span>
@@ -156,19 +158,21 @@ export default function DesignSystem() {
             </div>
             <div className="ds-card">
               <div className="ds-card__thumb">
-                <span className="ds-link-dot dsb-thumb-link"><IconLink size={14} /></span>
+                <span className="ds-link-dot"><IconLink size={12} /></span>
               </div>
-              <div className="ds-card__title">Sans titre 1</div>
-              <div className="ds-card__age">11 Day</div>
+              <div className="ds-card__meta">
+                <div className="ds-card__title">Sans titre 1</div>
+                <div className="ds-card__age">Il y a 11 jours</div>
+              </div>
             </div>
-            <div className="ds-stats" style={{ marginTop: 'var(--dash-stats-gap)' }}>
+            <div className="ds-stats">
               <span className="ds-stats__item"><IconEye size={12} />0</span>
-              <span className="ds-stats__item" style={{ marginLeft: 16 }}><IconClock size={12} />0min</span>
-              <span className="ds-stats__item" style={{ marginLeft: 'auto' }}><IconCalendar size={12} />26/03/2026</span>
+              <span className="ds-stats__item"><IconClock size={13} />0min</span>
+              <span className="ds-stats__item ds-stats__item--end"><IconCalendar size={12} />26/03/2026</span>
             </div>
           </div>
           <div className="dsb-center">
-            <img className="dsb-avatar" src="/avatar.png" alt="" />
+            <img className="ds-avatar dsb-avatar" src="/avatar.png" alt="" />
             <div style={{ fontSize: 'var(--fs-tab)' }}>8 Vidéos</div>
           </div>
         </div>
@@ -211,10 +215,10 @@ export default function DesignSystem() {
               <span className="ds-chip"><IconEye size={11} />8 vues</span>
             </div>
             <div className="dsb-author">
-              <img src="/avatar.png" alt="" />Publier par Izenn Kra&nbsp;&nbsp;-&nbsp;&nbsp;1 day ago
+              <img src="/avatar.png" alt="" />Publié par Izenn Kra&nbsp;&nbsp;-&nbsp;&nbsp;Il y a 1 jour
             </div>
             <div className="dsb-player"><span><IconPlay size={12} weight="fill" /></span></div>
-            <div className="dsb-desc-label"><IconInfo />Descirption</div>
+            <div className="dsb-desc-label"><IconInfo />Description</div>
             <div className="dsb-desc">Kunsthalle Basel’s solution lay in a paradox: an institutional brand with an anti-institutional spirit.</div>
           </div>
           <div className="dsb-side">

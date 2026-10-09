@@ -1,0 +1,68 @@
+/* Dashboard — mise en page (valeurs : design-system.css, frame de 1440 px). */
+.dash { position: relative; min-height: 100vh; }
+
+.dash__logo { position: absolute; left: var(--dash-logo-x); top: var(--dash-top); }
+.dash__avatar {
+  position: absolute;
+  right: var(--dash-right);
+  top: var(--dash-top);
+  width: var(--dash-avatar);
+  height: var(--dash-avatar);
+}
+
+/* Barre latérale fixe : reste visible quand la grille défile. */
+.dash__side {
+  position: fixed;
+  left: var(--dash-side-x);
+  top: var(--dash-side-top);
+  width: var(--dash-side-w);
+  z-index: 1;
+}
+.dash__panel {
+  display: flex;
+  flex-direction: column;
+  height: calc(var(--dash-side-bottom) - var(--dash-side-top) - var(--dash-new-h) - var(--dash-new-gap));
+  max-height: calc(100vh - var(--dash-side-top) - var(--dash-new-h) - var(--dash-new-gap));
+  margin-top: var(--dash-new-gap);
+  overflow-y: auto;
+  background: var(--c-surface);
+}
+.dash__all { flex: none; margin-top: 5px; }
+.dash__line { flex: none; height: 1px; margin: 16px 3px 0 1px; background: var(--c-surface-button); }
+.dash__panel > .ds-nav-item, .dash__panel > .ds-folder { flex: none; }
+
+.dash__main {
+  margin-left: var(--dash-content-x);
+  margin-right: var(--dash-right);
+  padding-top: 97px;
+  padding-bottom: 60px;
+}
+.dash__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--c-ink-soft);
+}
+.dash__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding-bottom: 19px;
+  border-bottom: 1px solid var(--c-line);
+}
+.dash__tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.dash__count { font-size: var(--fs-tab); }
+
+.dash__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--dash-card-min), 1fr));
+  column-gap: var(--dash-gap-x);
+  row-gap: var(--dash-gap-y);
+  margin-top: 20px;
+}
+.dash__sentinel { height: 1px; }
+
+.thumb-fill { position: absolute; inset: 0; }
+.dash__name { margin-left: 3px; }

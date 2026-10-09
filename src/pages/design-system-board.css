@@ -1,7 +1,7 @@
 /* Mise en page de la planche du design system (pas un écran du produit). */
 .dsb { padding: 32px 32px 80px; max-width: 1440px; margin: 0 auto; }
 .dsb-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.dsb-h1 { margin: 0; font-size: var(--fs-display); font-weight: 400; color: var(--c-ink-soft); }
+.dsb-h1 { margin: 0; font-size: var(--fs-title); font-weight: 400; color: var(--c-ink-soft); }
 .dsb-h2 { margin: 0 0 16px; font-size: var(--fs-title); font-weight: 400; color: var(--c-ink-soft); }
 .dsb-note, .dsb-meta { margin: 0; font-size: var(--fs-meta); color: var(--c-muted-1); }
 .dsb-section { padding: 24px 0; border-top: 1px solid var(--c-line); }
@@ -27,13 +27,12 @@
 .dsb-icon { width: 92px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 0; background: var(--c-white); }
 
 /* Dashboard */
-.dsb-sidebar { width: var(--dash-sidebar-w); }
+.dsb-sidebar { width: var(--dash-side-w); }
 .dsb-sidebar__panel { margin-top: var(--dash-new-gap); background: var(--c-surface); padding-bottom: 8px; }
-.dsb-sidebar__line { height: 1px; margin: 16px 4px 0 1px; background: var(--c-surface-button); }
-.dsb-folder { padding: 20px 12px 6px; font-size: var(--fs-micro); }
-.dsb-display { font-size: var(--fs-display); color: var(--c-ink-soft); margin-bottom: 20px; }
+.dsb-sidebar__line { height: 1px; margin: 16px 3px 0 1px; background: var(--c-surface-button); }
+.dsb-display { font-size: var(--fs-title); color: var(--c-ink-soft); margin-bottom: 20px; }
 .dsb-tabs { display: flex; gap: 11px; margin-bottom: 24px; }
-.dsb-thumb-link { position: absolute; top: 11px; right: 11px; color: var(--c-surface-strong); }
+.dsb-card .ds-card, .dsb-card .ds-stats { width: 247px; }
 .dsb-avatar { width: var(--dash-avatar); height: var(--dash-avatar); border-radius: var(--r-round); }
 
 /* Enregistreur */

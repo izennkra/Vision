@@ -1,4 +1,4 @@
-// Icônes : Phosphor (graisse « regular »), identifiées sur les captures.
+// Icônes : Phosphor (graisse « bold », réglée dans main.tsx), identifiées sur les captures.
 // Trois icônes ne correspondent à aucune icône Phosphor et sont dessinées ici : « Filtre caméra », « INFO » et pause.
 export {
   CardsThree as IconProjects,
@@ -60,6 +60,15 @@ export function IconPause({ color = 'currentColor' }: P) {
     <svg width="8" height="11" viewBox="0 0 8 11" fill={color}>
       <rect x="0" y="0" width="2" height="11" />
       <rect x="6" y="0" width="2" height="11" />
+    </svg>
+  )
+}
+
+/** Petit triangle du dossier repliable (« ▾ Clients »). */
+export function IconCaret({ open = true }: { open?: boolean }) {
+  return (
+    <svg width="5" height="4" viewBox="0 0 5 4" fill="currentColor" style={{ transform: open ? undefined : 'rotate(-90deg)' }}>
+      <polygon points="0,0 5,0 2.5,4" />
     </svg>
   )
 }

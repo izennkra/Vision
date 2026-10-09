@@ -41,6 +41,8 @@ export interface Video {
   /** Compteurs dénormalisés pour afficher le dashboard sans charger les vues. */
   viewCount: number
   commentCount: number
+  /** Données de test uniquement : vidéo d'exemple servie depuis /public. */
+  sampleUrl?: string
 }
 
 /** Un morceau de vidéo enregistré pendant la capture (quelques secondes). */

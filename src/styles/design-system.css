@@ -50,77 +50,81 @@
   --c-muted-5: #b1b1b1;        /* « Publié par … · il y a 1 jour » */
 
   /* --- Typographie (PP Neue Montreal, Regular 400 sauf mention) ---------- */
+  /* Échelle unique, mesurée sur une frame de référence de 1440 px.          */
   --font: 'PP Neue Montreal', sans-serif;
-  --fs-display: 20px;  /* « Bienvenue dans Visions, Izenn » */
-  --fs-title: 18px;    /* titre vidéo, nom du client, texte de description */
-  --fs-body: 14px;     /* barre latérale, titre de carte, boutons, commentaires */
-  --fs-tab: 13px;      /* onglets, compteur de vidéos */
-  --fs-meta: 12px;     /* pastille stats, date relative, auteur, vues */
-  --fs-timer: 11px;    /* chrono « 0:00 » — Semibold 600 */
-  --fs-micro: 10px;    /* « Clients » (titre de dossier) */
+  --fs-title: 18px;    /* « Bienvenue dans Visions, Izenn », titre vidéo, client, description */
+  --fs-body: 14px;     /* pages vidéo et enregistreur : commentaires, boutons, options */
+  --fs-ui: 13px;       /* dashboard : barre latérale, recherche, titre de carte */
+  --fs-meta: 12px;     /* auteur, vues, ancienneté des commentaires */
+  --fs-tab: 11.5px;    /* onglets, compteur de vidéos */
+  --fs-small: 11px;    /* pastille stats, ancienneté de carte, chrono (Semibold 600), initiales */
+  --fs-micro: 9px;     /* « Clients » (titre de dossier) */
   --lh: 1.2;           /* interligne commentaires et description */
 
   /* --- Rayons ------------------------------------------------------------ */
   --r-none: 0;         /* panneaux, cartes, barre latérale, « Supprimer » */
-  --r-thumb: 6px;      /* vignette dans la carte */
+  --r-thumb: 4px;      /* vignette dans la carte */
   --r-pill: 999px;     /* boutons pilule, pastilles, onglet actif */
-  --r-round: 50%;      /* avatars, bulle caméra, GO, envoyer, pause, recommencer */
+  --r-round: 50%;      /* avatars, bulle, GO, envoyer, pause, recommencer */
 
-  /* --- Icônes : Phosphor, graisse « regular » ---------------------------- */
-  --icon-s: 12px;      /* pastille stats */
-  --icon-m: 14px;      /* barre latérale, panneau d'enregistrement */
-  --icon-l: 18px;      /* micro du champ commentaire */
+  /* --- Icônes : Phosphor, graisse « bold » (src/components/icons.tsx) --- */
 
-  /* --- Dashboard --------------------------------------------------------- */
-  --dash-gutter: 32px;           /* marge gauche de la barre latérale */
-  --dash-logo-top: 26px;
-  --dash-sidebar-w: 246px;
-  --dash-sidebar-top: 107px;     /* haut du bouton « Nouveau fichier » */
-  --dash-sidebar-bottom: 863px;  /* bas du panneau gris */
-  --dash-new-h: 40px;
-  --dash-new-gap: 12px;          /* bouton → recherche */
-  --dash-search-h: 40px;
-  --dash-item-h: 46px;           /* ligne « Tous les projets » / clients */
+  /* --- Dimensions (frame de référence 1440 px) --------------------------- */
+  /* Logo et avatar */
+  --logo-w: 58px;
+  --logo-h: 22px;
+
+  /* Dashboard */
+  --dash-logo-x: 32px;
+  --dash-top: 24px;              /* haut du logo et de l'avatar */
+  --dash-avatar: 42px;
+  --dash-side-x: 29px;           /* marge gauche de la barre latérale */
+  --dash-side-w: 222px;
+  --dash-side-top: 96px;         /* haut du bouton « Nouveau fichier » */
+  --dash-side-bottom: 778px;     /* bas du panneau gris */
+  --dash-new-h: 37px;
+  --dash-new-gap: 10px;          /* bouton → recherche */
+  --dash-search-h: 37px;
+  --dash-item-h: 37px;           /* « Tous les projets » */
+  --dash-client-h: 42px;         /* lignes Client 1, 2, 3 */
   --dash-active-bar: 4px;        /* filet vert de l'élément actif */
-  --dash-content-x: 420px;       /* début de la zone centrale */
-  --dash-content-right: 34px;    /* marge droite (avatar, compteur, grille) */
-  --dash-avatar: 48px;
-  --dash-card-w: 275px;
-  --dash-card-h: 210px;
-  --dash-card-pad: 7px;          /* marge autour de la vignette */
-  --dash-thumb-h: 145px;
-  --dash-grid-gap-x: 15px;
-  --dash-grid-gap-y: 22px;
-  --dash-stats-gap: 10px;        /* carte → pastille stats */
-  --dash-stats-h: 40px;
+  --dash-content-x: 378px;       /* début de la zone centrale */
+  --dash-right: 30px;            /* marge droite (avatar, compteur, grille) */
+  --dash-card-min: 247px;        /* largeur de carte (4 colonnes à 1440 px, plus si l'écran est plus large) */
+  --dash-card-pad: 6px;          /* marge autour de la vignette */
+  --dash-thumb-ratio: 236 / 130; /* vignette 236 × 130 à 1440 px, proportions gardées si la carte s'élargit */
+  --dash-card-meta-h: 47px;      /* zone titre + ancienneté (carte de 189 px de haut à 1440 px) */
+  --dash-gap-x: 13.5px;
+  --dash-gap-y: 19px;
+  --dash-stats-gap: 9px;         /* carte → pastille stats */
+  --dash-stats-h: 36px;
 
-  /* --- Enregistreur ------------------------------------------------------ */
-  --rec-bar-w: 72px;
+  /* Enregistreur */
+  --rec-bar-w: 73px;
   --rec-bar-pad: 8px;
-  --rec-bar-btn: 56px;           /* pause, recommencer, On/Off (largeur) */
-  --rec-toggle-h: 38px;          /* hauteur de « On » et de « Off » */
-  --rec-timer-w: 42px;
+  --rec-bar-btn: 57px;           /* pause, recommencer, On/Off (largeur) */
+  --rec-toggle-h: 39px;
+  --rec-timer-w: 43px;
   --rec-timer-h: 25px;
   --rec-gap: 15px;
-  --rec-panel-w: 217px;
+  --rec-panel-w: 221px;
   --rec-panel-pad: 18px;
-  --rec-option-h: 48px;
+  --rec-option-h: 49px;
   --rec-option-gap: 16px;
-  --rec-go: 85px;
-  --rec-bubble: 160px;           /* bulle caméra, collée en bas à gauche */
+  --rec-go: 87px;
+  --rec-bubble: 163px;           /* bulle caméra, collée en bas à gauche */
 
-  /* --- Pages vidéo ------------------------------------------------------- */
-  --video-main-w: 1000px;        /* zone gauche (#f1f1f1) */
-  --video-side-w: 410px;         /* panneau commentaires (#e8e8e8) */
-  --video-gutter: 29px;          /* marge autour du bloc vidéo et du logo */
-  --video-pad: 27px;             /* marge intérieure du bloc vidéo */
-  --video-header-h: 110px;       /* zone titre + auteur */
+  /* Pages vidéo */
+  --video-side-w: 419px;         /* panneau commentaires (#e8e8e8) ; la zone gauche prend le reste */
+  --video-gutter: 30px;          /* marge autour du bloc vidéo et du logo */
+  --video-pad: 28px;             /* marge intérieure du bloc vidéo */
+  --video-header-h: 111px;       /* zone titre + auteur */
   --video-action-h: 22px;        /* Supprimer / Publier / Partager / lien */
-  --video-author-avatar: 28px;
+  --video-author-avatar: 30px;
   --side-pad: 18px;
-  --comment-avatar: 24px;
-  --comment-input-h: 128px;
-  --comment-send: 128px;
+  --comment-avatar: 25px;
+  --comment-input-h: 131px;
+  --comment-send: 131px;
 }
 
 /* ==========================================================================
@@ -156,108 +160,149 @@ button { cursor: pointer; }
    COMPOSANTS
    ========================================================================== */
 
+/* Logo IK (fichier fourni, 58 × 22) */
+.ds-logo { display: block; width: var(--logo-w); height: var(--logo-h); }
+
+/* Avatar rond */
+.ds-avatar { display: block; border-radius: var(--r-round); object-fit: cover; }
+
+/* --- Dashboard ----------------------------------------------------------- */
+
 /* Bouton principal vert pleine largeur — « Nouveau fichier » */
 .ds-btn-primary {
   display: flex;
   align-items: center;
+  width: 100%;
   height: var(--dash-new-h);
-  padding: 0 18px;
+  padding: 0 16px;
   border-radius: var(--r-pill);
   background: var(--c-green);
   color: var(--c-on-dark);
-  font-size: var(--fs-body);
+  font-size: var(--fs-ui);
 }
 
 /* Champ de recherche de la barre latérale */
 .ds-search {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   height: var(--dash-search-h);
-  padding: 0 12px;
+  padding: 0 10px;
   background: var(--c-surface-strong);
   color: var(--c-muted-3);
-  font-size: var(--fs-body);
+  font-size: var(--fs-ui);
 }
-.ds-search input::placeholder { color: var(--c-muted-3); }
+.ds-search input { flex: 1; min-width: 0; color: var(--c-ink); }
+.ds-search input::placeholder { color: var(--c-muted-3); opacity: 1; }
 
 /* Élément de navigation latérale (icône + libellé) */
 .ds-nav-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 9px;
-  height: var(--dash-item-h);
-  padding: 0 12px;
-  font-size: var(--fs-body);
+  gap: 6px;
+  width: 100%;
+  height: var(--dash-client-h);
+  padding: 0 9px;
+  font-size: var(--fs-ui);
   color: var(--c-ink);
+  text-align: left;
 }
+.ds-nav-item--main { height: var(--dash-item-h); }
+.ds-nav-item__folder { position: relative; top: -2px; } /* l'icône dossier Phosphor est dessinée plus bas que les autres */
 .ds-nav-item.is-active::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 5px;
+  top: 0;
   bottom: 0;
   width: var(--dash-active-bar);
   background: var(--c-green);
+}
+
+/* Titre de dossier repliable (« ▾ Clients ») */
+.ds-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 12px 0 0 11px;
+  font-size: var(--fs-micro);
+  line-height: 1;
+  color: var(--c-ink);
 }
 
 /* Onglet (Récents / Client 1…) */
 .ds-tab {
   display: inline-flex;
   align-items: center;
-  height: 21px;
-  padding: 0 11px;
+  height: 20px;
+  padding: 0 12px;
   border-radius: var(--r-pill);
   font-size: var(--fs-tab);
   color: var(--c-ink);
 }
 .ds-tab.is-active { background: var(--c-tab-active); }
 
-/* Carte vidéo du dashboard */
+/* Carte vidéo */
 .ds-card {
-  width: var(--dash-card-w);
-  height: var(--dash-card-h);
+  display: block;
   padding: var(--dash-card-pad);
   background: var(--c-surface-strong);
+  color: var(--c-ink);
+  cursor: pointer;
 }
 .ds-card__thumb {
   position: relative;
-  height: var(--dash-thumb-h);
+  aspect-ratio: var(--dash-thumb-ratio);
   border-radius: var(--r-thumb);
   background: var(--c-placeholder);
   overflow: hidden;
 }
-.ds-card__title { margin: 13px 0 0 8px; font-size: var(--fs-body); }
-.ds-card__age { margin: 2px 0 0 8px; font-size: var(--fs-meta); color: var(--c-muted-1); }
+.ds-card__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ds-card__meta { height: var(--dash-card-meta-h); overflow: hidden; }
+.ds-card__title {
+  margin: 10px 0 0 8px;
+  font-size: var(--fs-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-card__age { margin: 3px 0 0 8px; font-size: var(--fs-small); color: var(--c-muted-1); }
 
-/* Pastille ronde sombre avec icône lien (sur vignette, à côté de Publier) */
+/* Pastille ronde sombre avec icône lien (sur vignette, à côté de Publier / Partager) */
 .ds-link-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  flex: none;
+  width: 20px;
+  height: 20px;
   border-radius: var(--r-round);
   background: var(--c-ink-soft);
   color: var(--c-surface-strong);
 }
+.ds-card__thumb .ds-link-dot { position: absolute; top: 11px; right: 9px; }
 
 /* Pastille de statistiques sous la carte (vues, durée, date) */
 .ds-stats {
   display: flex;
   align-items: center;
-  width: var(--dash-card-w);
   height: var(--dash-stats-h);
-  padding: 0 16px;
+  margin-top: var(--dash-stats-gap);
+  padding: 0 14px;
   border-radius: var(--r-pill);
   background: var(--c-surface);
-  font-size: var(--fs-meta);
+  font-size: var(--fs-small);
   color: var(--c-ink);
 }
-.ds-stats__item { display: inline-flex; align-items: center; gap: 8px; }
+.ds-stats__item { display: inline-flex; align-items: center; gap: 6px; }
+.ds-stats__item + .ds-stats__item { margin-left: 14px; }
+.ds-stats__item--end { margin-left: auto !important; }
 
-/* Bouton d'option du panneau d'enregistrement (Window, Caméra, Micro, Filtre) */
+/* --- Enregistreur -------------------------------------------------------- */
+
+/* Bouton d'option du panneau (Window, Caméra, Micro, Filtre caméra) */
 .ds-option {
   display: flex;
   align-items: center;
@@ -276,6 +321,7 @@ button { cursor: pointer; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
   border-radius: var(--r-round);
   background: var(--c-green);
   color: var(--c-on-dark);
@@ -313,12 +359,14 @@ button { cursor: pointer; }
   height: var(--rec-timer-h);
   border: 1px solid var(--c-ink-soft);
   border-radius: var(--r-pill);
-  font-size: var(--fs-timer);
+  font-size: var(--fs-small);
   font-weight: 600;
   color: var(--c-ink-soft);
 }
 
-/* Boutons d'action des pages vidéo */
+/* --- Pages vidéo --------------------------------------------------------- */
+
+/* Boutons d'action (Supprimer / Publier / Partager) */
 .ds-action {
   display: inline-flex;
   align-items: center;
@@ -328,13 +376,9 @@ button { cursor: pointer; }
   color: var(--c-ink-soft);
 }
 .ds-action--ghost { background: var(--c-surface-button); }
-.ds-action--dark {
-  border-radius: var(--r-pill);
-  background: var(--c-ink-soft);
-  color: var(--c-on-dark);
-}
+.ds-action--dark { border-radius: var(--r-pill); background: var(--c-ink-soft); color: var(--c-on-dark); }
 
-/* Lien orange souligné (Izenn, nom du client) */
+/* Lien orange souligné (prénom, client) */
 .ds-accent-link {
   color: var(--c-orange);
   text-decoration: underline;
@@ -366,7 +410,7 @@ button { cursor: pointer; }
   border-radius: var(--r-round);
   background: var(--c-avatar);
   color: var(--c-white);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 /* Commentaire */
