@@ -1,35 +1,43 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type DragEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { owner } from '../config'
-import { repo, type Client, type Video } from '../data'
+import { repo, type Client, type ID, type Video } from '../data'
 import { Logo } from '../components/Logo'
 import { Thumbnail } from '../components/Thumbnail'
+import { InlineEdit } from '../components/InlineEdit'
+import { useContextMenu, type MenuItem } from '../components/ContextMenu'
 import {
-  IconCalendar, IconCaret, IconClock, IconEye, IconFolder, IconLink, IconProjects, IconSearch,
+  IconCalendar, IconCaret, IconCheck, IconClock, IconEye, IconFolder, IconLink, IconPlus, IconProjects, IconSearch,
 } from '../components/icons'
 import { useInView } from '../hooks/useInView'
 import { durationLabel, plural, shortDate, timeAgo } from '../lib/format'
-import { copyShareLink } from '../lib/share'
+import { downloadVideo, shareVideo, useCopied } from '../lib/share'
 import './dashboard.css'
 
 const PAGE = 24
+const DRAG_TYPE = 'application/x-visions-video'
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const openMenu = useContextMenu()
   const [params, setParams] = useSearchParams()
   const clientId = params.get('client')
   const [clients, setClients] = useState<Client[]>([])
   const [foldersOpen, setFoldersOpen] = useState(true)
+  const [renamingClient, setRenamingClient] = useState<ID | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [videos, setVideos] = useState<Video[]>([])
   const [total, setTotal] = useState(0)
   const [next, setNext] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [reload, setReload] = useState(0)
   const [sentinel, atEnd] = useInView<HTMLDivElement>('600px')
 
+  const refreshClients = useCallback(() => repo.listClients().then(setClients), [])
   useEffect(() => {
-    repo.listClients().then(setClients)
-  }, [])
+    refreshClients()
+  }, [refreshClients])
 
   // Première page à chaque changement de filtre.
   useEffect(() => {
@@ -45,7 +53,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [clientId, search])
+  }, [clientId, search, reload])
 
   // Pages suivantes quand on approche du bas.
   const loadMore = useCallback(async () => {
@@ -63,37 +71,111 @@ export default function Dashboard() {
 
   const selectClient = (id: string | null) => setParams(id ? { client: id } : {})
 
+  // --- Dossiers clients -------------------------------------------------------
+  const createClient = async () => {
+    const c = await repo.createClient('Nouveau dossier')
+    setFoldersOpen(true)
+    await refreshClients()
+    setRenamingClient(c.id)
+  }
+  const renameClient = async (id: ID, name: string) => {
+    await repo.renameClient(id, name)
+    refreshClients()
+  }
+  const deleteClient = async (id: ID) => {
+    await repo.deleteClient(id)
+    if (clientId === id) selectClient(null)
+    await refreshClients()
+    setReload((r) => r + 1)
+  }
+  const clientMenu = (e: React.MouseEvent, c: Client) =>
+    openMenu(e, [
+      { label: 'Ouvrir', onSelect: () => selectClient(c.id) },
+      { label: 'Renommer', onSelect: () => setRenamingClient(c.id) },
+      'separator',
+      { label: 'Nouveau dossier', onSelect: createClient },
+      'separator',
+      { label: 'Supprimer le dossier', confirm: 'Confirmer (les vidéos restent)', danger: true, onSelect: () => deleteClient(c.id) },
+    ])
+
+  // --- Vidéos -----------------------------------------------------------------
+  const replaceVideo = (v: Video) => setVideos((list) => list.map((x) => (x.id === v.id ? v : x)))
+  const moveVideo = async (videoId: ID, target: ID | null) => {
+    await repo.updateVideo(videoId, { clientId: target })
+    setReload((r) => r + 1)
+  }
+  const deleteVideo = async (v: Video) => {
+    await repo.deleteVideo(v.id)
+    setVideos((list) => list.filter((x) => x.id !== v.id))
+    setTotal((t) => t - 1)
+  }
+
+  // Glisser une carte sur un dossier pour l'y ranger.
+  const dropProps = (key: string, target: ID | null) => ({
+    onDragOver: (e: DragEvent) => {
+      if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
+      e.preventDefault()
+      setDropTarget(key)
+    },
+    onDragLeave: () => setDropTarget((k) => (k === key ? null : k)),
+    onDrop: (e: DragEvent) => {
+      const id = e.dataTransfer.getData(DRAG_TYPE)
+      setDropTarget(null)
+      if (id) moveVideo(id, target)
+    },
+  })
+
   return (
     <div className="dash">
       <div className="dash__logo"><Logo /></div>
       <img className="ds-avatar dash__avatar" src={owner.avatarUrl} alt={owner.fullName} />
 
       <aside className="dash__side">
-        <button className="ds-btn-primary" onClick={() => navigate('/record')}>Nouveau fichier</button>
+        <button className="ds-btn-primary" onClick={() => navigate(clientId ? `/record?client=${clientId}` : '/record')}>
+          Nouvelle vidéo
+        </button>
         <nav className="dash__panel">
           <label className="ds-search">
             <IconSearch size={13} />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Recherche..." />
           </label>
           <button
-            className={`ds-nav-item ds-nav-item--main dash__all${clientId ? '' : ' is-active'}`}
+            className={`ds-nav-item ds-nav-item--main dash__all${clientId ? '' : ' is-active'}${dropTarget === 'all' ? ' is-drop-target' : ''}`}
             onClick={() => selectClient(null)}
+            {...dropProps('all', null)}
           >
             <IconProjects size={14} />Tous les projets
           </button>
           <div className="dash__line" />
-          <button className="ds-folder" onClick={() => setFoldersOpen((o) => !o)}>
-            <IconCaret open={foldersOpen} />Clients
-          </button>
+          <div className="dash__folder-row" onContextMenu={(e) => openMenu(e, [{ label: 'Nouveau dossier', onSelect: createClient }])}>
+            <button className="ds-folder" onClick={() => setFoldersOpen((o) => !o)}>
+              <IconCaret open={foldersOpen} />Clients
+            </button>
+            <button className="dash__add ds-hover" onClick={createClient} aria-label="Nouveau dossier" title="Nouveau dossier">
+              <IconPlus size={10} />
+            </button>
+          </div>
           {foldersOpen &&
             clients.map((c) => (
-              <button
+              <div
                 key={c.id}
-                className={`ds-nav-item${clientId === c.id ? ' is-active' : ''}`}
-                onClick={() => selectClient(c.id)}
+                role="button"
+                tabIndex={0}
+                className={`ds-nav-item${clientId === c.id ? ' is-active' : ''}${dropTarget === c.id ? ' is-drop-target' : ''}`}
+                onClick={() => renamingClient !== c.id && selectClient(c.id)}
+                onDoubleClick={() => setRenamingClient(c.id)}
+                onContextMenu={(e) => clientMenu(e, c)}
+                {...dropProps(c.id, c.id)}
               >
-                <IconFolder size={14} className="ds-nav-item__folder" />{c.name}
-              </button>
+                <IconFolder size={14} className="ds-nav-item__folder" />
+                <InlineEdit
+                  value={c.name}
+                  editing={renamingClient === c.id}
+                  onEditingChange={(v) => setRenamingClient(v ? c.id : null)}
+                  onSave={(name) => renameClient(c.id, name)}
+                  className="dash__client-name"
+                />
+              </div>
             ))}
         </nav>
       </aside>
@@ -106,7 +188,12 @@ export default function Dashboard() {
           <div className="dash__tabs">
             <button className={`ds-tab${clientId ? '' : ' is-active'}`} onClick={() => selectClient(null)}>Récents</button>
             {clients.map((c) => (
-              <button key={c.id} className={`ds-tab${clientId === c.id ? ' is-active' : ''}`} onClick={() => selectClient(c.id)}>
+              <button
+                key={c.id}
+                className={`ds-tab${clientId === c.id ? ' is-active' : ''}`}
+                onClick={() => selectClient(c.id)}
+                onContextMenu={(e) => clientMenu(e, c)}
+              >
                 {c.name}
               </button>
             ))}
@@ -116,7 +203,15 @@ export default function Dashboard() {
 
         <div className="dash__grid">
           {videos.map((v) => (
-            <VideoCard key={v.id} video={v} onOpen={() => navigate(`/video/${v.id}`)} />
+            <VideoCard
+              key={v.id}
+              video={v}
+              clients={clients}
+              onOpen={() => navigate(`/video/${v.id}`)}
+              onChange={replaceVideo}
+              onMove={(target) => moveVideo(v.id, target)}
+              onDelete={() => deleteVideo(v)}
+            />
           ))}
         </div>
         <div ref={sentinel} className="dash__sentinel" />
@@ -125,25 +220,79 @@ export default function Dashboard() {
   )
 }
 
-function VideoCard({ video, onOpen }: { video: Video; onOpen: () => void }) {
+interface CardProps {
+  video: Video
+  clients: Client[]
+  onOpen: () => void
+  onChange: (v: Video) => void
+  onMove: (clientId: ID | null) => void
+  onDelete: () => void
+}
+
+function VideoCard({ video, clients, onOpen, onChange, onMove, onDelete }: CardProps) {
+  const openMenu = useContextMenu()
+  const [copied, flash] = useCopied()
+  const [renaming, setRenaming] = useState(false)
+  const [dragging, setDragging] = useState(false)
+
+  const share = async () => {
+    onChange(await shareVideo(video))
+    flash()
+  }
+  const rename = async (title: string) => onChange(await repo.updateVideo(video.id, { title }))
+
+  const menu: MenuItem[] = [
+    { label: 'Ouvrir', onSelect: onOpen },
+    { label: 'Copier le lien client', onSelect: share },
+    { label: 'Renommer', onSelect: () => setRenaming(true) },
+    {
+      label: 'Déplacer vers',
+      children: [
+        ...clients.map((c) => ({ label: c.name, muted: c.id === video.clientId, onSelect: () => onMove(c.id) })),
+        'separator' as const,
+        { label: 'Aucun dossier', muted: video.clientId === null, onSelect: () => onMove(null) },
+      ],
+    },
+    ...(video.chunkCount > 0 ? [{ label: 'Télécharger', onSelect: () => downloadVideo(video) }] : []),
+    'separator',
+    { label: 'Supprimer', confirm: 'Confirmer la suppression', danger: true, onSelect: onDelete },
+  ]
+
   return (
-    <article className="dash__item">
-      <div className="ds-card" onClick={onOpen}>
+    <article
+      className={`dash__item${dragging ? ' is-dragging' : ''}`}
+      draggable={!renaming}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DRAG_TYPE, video.id)
+        e.dataTransfer.effectAllowed = 'move'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      onContextMenu={(e) => openMenu(e, menu)}
+    >
+      <div className="ds-card" onClick={() => !renaming && onOpen()}>
         <div className="ds-card__thumb">
           <Thumbnail thumbKey={video.thumbnailKey} />
           <button
             className="ds-link-dot"
-            aria-label="Copier le lien de partage"
+            aria-label="Copier le lien client"
+            title={copied ? 'Lien copié' : 'Copier le lien client'}
             onClick={(e) => {
               e.stopPropagation()
-              copyShareLink(video.shareToken)
+              share()
             }}
           >
-            <IconLink size={12} />
+            {copied ? <IconCheck size={12} /> : <IconLink size={12} />}
           </button>
         </div>
         <div className="ds-card__meta">
-          <div className="ds-card__title">{video.title}</div>
+          <div className="ds-card__title" onClick={(e) => renaming && e.stopPropagation()}>
+            {renaming ? (
+              <InlineEdit value={video.title} editing onEditingChange={setRenaming} onSave={rename} />
+            ) : (
+              video.title
+            )}
+          </div>
           <div className="ds-card__age">{timeAgo(video.createdAt)}</div>
         </div>
       </div>

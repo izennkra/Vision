@@ -1,5 +1,5 @@
 // Icônes : Phosphor (graisse « bold », réglée dans main.tsx), identifiées sur les captures.
-// Trois icônes ne correspondent à aucune icône Phosphor et sont dessinées ici : « Filtre caméra », « INFO » et pause.
+// Quelques icônes ne correspondent à aucune icône Phosphor et sont dessinées ici : « Filtre caméra », « INFO », pause, « Répondre ».
 export {
   CardsThree as IconProjects,
   FolderOpen as IconFolder,
@@ -12,9 +12,11 @@ export {
   VideoCamera as IconCamera,
   Microphone as IconMic,
   ArrowClockwise as IconRestart,
-  ArrowElbowUpLeft as IconReply,
   ArrowUp as IconSend,
   Play as IconPlay,
+  Check as IconCheck,
+  Plus as IconPlus,
+  CornersOut as IconFullscreen,
 } from '@phosphor-icons/react'
 
 type P = { size?: number; color?: string }
@@ -69,6 +71,16 @@ export function IconCaret({ open = true }: { open?: boolean }) {
   return (
     <svg width="5" height="4" viewBox="0 0 5 4" fill="currentColor" style={{ transform: open ? undefined : 'rotate(-90deg)' }}>
       <polygon points="0,0 5,0 2.5,4" />
+    </svg>
+  )
+}
+
+/** Flèche « Répondre » : pointe à gauche, retour vers le bas à droite (comme sur la capture). */
+export function IconReply({ color = 'currentColor' }: P) {
+  return (
+    <svg width="15" height="13" viewBox="0 0 15 13" fill="none" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 1 L1 4 L4.5 7" />
+      <path d="M1.3 4 H13 V12.5" />
     </svg>
   )
 }

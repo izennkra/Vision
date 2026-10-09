@@ -62,6 +62,33 @@ export class LocalRepository implements Repository {
     return clients.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   }
 
+  async createClient(name: string) {
+    const client: Client = { id: newId(), name, createdAt: now() }
+    await (await this.dbp).put('clients', client)
+    return client
+  }
+
+  async renameClient(id: ID, name: string) {
+    const db = await this.dbp
+    const client = await db.get('clients', id)
+    if (!client) throw new Error('Dossier introuvable')
+    const updated = { ...client, name }
+    await db.put('clients', updated)
+    return updated
+  }
+
+  async deleteClient(id: ID) {
+    const db = await this.dbp
+    const tx = db.transaction(['clients', 'videos'], 'readwrite')
+    tx.objectStore('clients').delete(id)
+    let c = await tx.objectStore('videos').openCursor()
+    while (c) {
+      if (c.value.clientId === id) await c.update({ ...c.value, clientId: null })
+      c = await c.continue()
+    }
+    await tx.done
+  }
+
   // --- Vidéos ---------------------------------------------------------------
   /** Parcourt l'index par date décroissante et s'arrête dès que la page est pleine. */
   async listVideos({ clientId, search, cursor, limit = DEFAULT_LIMIT }: VideoQuery): Promise<Page<Video>> {
@@ -231,6 +258,19 @@ export class LocalRepository implements Repository {
     if (video) tx.objectStore('videos').put({ ...video, commentCount: video.commentCount + 1 })
     await tx.done
     return comment
+  }
+
+  async deleteComment(id: ID) {
+    const db = await this.dbp
+    const comment = await db.get('comments', id)
+    if (!comment) return
+    const all = await db.getAllFromIndex('comments', 'byVideo', comment.videoId)
+    const ids = [id, ...all.filter((c) => c.parentId === id).map((c) => c.id)]
+    const tx = db.transaction(['comments', 'videos'], 'readwrite')
+    for (const x of ids) tx.objectStore('comments').delete(x)
+    const video = await tx.objectStore('videos').get(comment.videoId)
+    if (video) tx.objectStore('videos').put({ ...video, commentCount: Math.max(0, video.commentCount - ids.length) })
+    await tx.done
   }
 
   // --- Vues -----------------------------------------------------------------

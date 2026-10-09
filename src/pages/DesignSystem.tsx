@@ -129,7 +129,7 @@ export default function DesignSystem() {
             [<IconSearch size={14} />, 'Recherche'], [<IconLink size={14} />, 'Lien'], [<IconEye size={14} />, 'Vues'],
             [<IconClock size={14} />, 'Durée'], [<IconCalendar size={14} />, 'Date'], [<IconWindow size={16} />, 'Window'],
             [<IconCamera size={16} />, 'Caméra'], [<IconMic size={16} />, 'Micro'], [<IconFilter />, 'Filtre caméra'],
-            [<IconPause />, 'Pause'], [<IconRestart size={16} />, 'Recommencer'], [<IconReply size={14} />, 'Répondre'],
+            [<IconPause />, 'Pause'], [<IconRestart size={16} />, 'Recommencer'], [<IconReply />, 'Répondre'],
             [<IconSend size={24} />, 'Envoyer'], [<IconPlay size={12} weight="fill" />, 'Lecture'], [<IconInfo />, 'Info'],
           ].map(([icon, label]) => (
             <div key={label as string} className="dsb-icon"><div>{icon}</div><div className="dsb-meta">{label}</div></div>
@@ -227,7 +227,7 @@ export default function DesignSystem() {
               <span className="ds-comment__age">Il y a 2h</span>
             </div>
             <div className="ds-comment__text">Kunsthalle Basel’s solution lay in a paradox: an institutional brand with an anti-institutional spirit.</div>
-            <div className="ds-comment__reply"><IconReply size={14} />Répondre</div>
+            <div className="ds-comment__reply"><IconReply />Répondre</div>
             <div className="dsb-count">2 Commentaires</div>
             <div className="dsb-compose">
               <div className="ds-comment-input">

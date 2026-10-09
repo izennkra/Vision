@@ -66,3 +66,19 @@
 
 .thumb-fill { position: absolute; inset: 0; }
 .dash__name { margin-left: 3px; }
+
+/* Titre « Clients » + bouton « + » (visible au survol) */
+.dash__folder-row { display: flex; align-items: flex-start; justify-content: space-between; flex: none; }
+.dash__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 12px 11px 0;
+  color: var(--c-ink);
+  opacity: 0;
+}
+.dash__folder-row:hover .dash__add, .dash__add:focus-visible { opacity: 1; }
+.dash__folder-row:hover .dash__add:hover { opacity: var(--o-hover); }
+.dash__client-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash__item { cursor: default; }

@@ -65,7 +65,7 @@ export function seed() {
   const text = 'Kunsthalle Basel’s solution lay in a paradox: an institutional brand with an anti-institutional spirit.'
   const comments: Comment[] = [
     { id: 'c1', videoId: 'video-1', parentId: null, authorName: 'Anna Simon', authorInitials: 'AS', text, timestamp: 92, createdAt: ago(0, 2) },
-    { id: 'c2', videoId: 'video-1', parentId: null, authorName: 'Anna Simon', authorInitials: 'AS', text, timestamp: 225, createdAt: ago(0, 1) },
+    { id: 'c2', videoId: 'video-1', parentId: null, authorName: 'Anna Simon', authorInitials: 'AS', text, timestamp: 225, createdAt: ago(0, 1.1) },
     {
       id: 'c3', videoId: 'video-1', parentId: null, authorName: 'Anna Simon', authorInitials: 'AS',
       text: `${text} Anchored with a timeless yet flexible monogram and serif type, the identity is free to break convention elsewhere — allowing them to respond to culture in real time.`,

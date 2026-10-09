@@ -15,8 +15,12 @@ export interface VideoQuery {
 }
 
 export interface Repository {
-  // Clients
+  // Clients (dossiers)
   listClients(): Promise<Client[]>
+  createClient(name: string): Promise<Client>
+  renameClient(id: ID, name: string): Promise<Client>
+  /** Supprime le dossier ; ses vidéos sont conservées et deviennent « sans client ». */
+  deleteClient(id: ID): Promise<void>
 
   // Vidéos (métadonnées seulement, jamais le fichier vidéo)
   listVideos(query: VideoQuery): Promise<Page<Video>>
@@ -39,6 +43,8 @@ export interface Repository {
   // Commentaires
   listComments(videoId: ID): Promise<Comment[]>
   addComment(comment: Omit<Comment, 'id' | 'createdAt'>): Promise<Comment>
+  /** Supprime le commentaire et ses réponses. */
+  deleteComment(id: ID): Promise<void>
 
   // Vues
   recordView(view: Omit<View, 'id'>): Promise<View>

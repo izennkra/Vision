@@ -52,11 +52,11 @@
   /* --- Typographie (PP Neue Montreal, Regular 400 sauf mention) ---------- */
   /* Échelle unique, mesurée sur une frame de référence de 1440 px.          */
   --font: 'PP Neue Montreal', sans-serif;
-  --fs-title: 18px;    /* « Bienvenue dans Visions, Izenn », titre vidéo, client, description */
+  --fs-title: 17.5px;  /* « Bienvenue dans Visions, Izenn », titre vidéo, client, description */
   --fs-body: 14px;     /* pages vidéo et enregistreur : commentaires, boutons, options */
   --fs-ui: 13px;       /* dashboard : barre latérale, recherche, titre de carte */
-  --fs-meta: 12px;     /* auteur, vues, ancienneté des commentaires */
-  --fs-tab: 11.5px;    /* onglets, compteur de vidéos */
+  --fs-meta: 12px;     /* initiales des commentaires, menus */
+  --fs-tab: 11.5px;    /* onglets, compteur de vidéos, « Publié par … » */
   --fs-small: 11px;    /* pastille stats, ancienneté de carte, chrono (Semibold 600), initiales */
   --fs-micro: 9px;     /* « Clients » (titre de dossier) */
   --lh: 1.2;           /* interligne commentaires et description */
@@ -68,6 +68,12 @@
   --r-round: 50%;      /* avatars, bulle, GO, envoyer, pause, recommencer */
 
   /* --- Icônes : Phosphor, graisse « bold » (src/components/icons.tsx) --- */
+
+  /* --- Interactions (ajoutées avec ton accord : légères et discrètes) ---- */
+  --t-fast: 150ms;     /* durée des fondus */
+  --o-hover: 0.7;      /* opacité au survol */
+  --o-disabled: 0.35;
+  --r-menu: 10px;      /* menu contextuel (clic droit) */
 
   /* --- Dimensions (frame de référence 1440 px) --------------------------- */
   /* Logo et avatar */
@@ -118,13 +124,13 @@
   --video-side-w: 419px;         /* panneau commentaires (#e8e8e8) ; la zone gauche prend le reste */
   --video-gutter: 30px;          /* marge autour du bloc vidéo et du logo */
   --video-pad: 28px;             /* marge intérieure du bloc vidéo */
-  --video-header-h: 111px;       /* zone titre + auteur */
+  --video-header-h: 114px;       /* zone titre + auteur (filet compris) */
   --video-action-h: 22px;        /* Supprimer / Publier / Partager / lien */
   --video-author-avatar: 30px;
   --side-pad: 18px;
   --comment-avatar: 25px;
   --comment-input-h: 131px;
-  --comment-send: 131px;
+  --comment-send: 132px;
 }
 
 /* ==========================================================================
@@ -428,3 +434,69 @@ button { cursor: pointer; }
   background: var(--c-surface-strong);
   color: var(--c-muted-2);
 }
+
+/* ==========================================================================
+   INTERACTIONS
+   ========================================================================== */
+
+/* Fondu d'opacité au survol de tout ce qui est cliquable */
+.ds-btn-primary, .ds-tab, .ds-nav-item, .ds-folder, .ds-link-dot, .ds-option,
+.ds-round-primary, .ds-round-white, .ds-action, .ds-toggle button, .ds-hover,
+.ds-comment__time, .ds-comment__reply, .ds-accent-link {
+  transition: opacity var(--t-fast) ease;
+}
+.ds-btn-primary:hover, .ds-tab:not(.is-active):hover, .ds-nav-item:not(.is-active):hover,
+.ds-folder:hover, .ds-link-dot:hover, .ds-option:hover, .ds-round-primary:hover,
+.ds-round-white:hover, .ds-action:hover, .ds-toggle button:hover, .ds-hover:hover,
+.ds-comment__time:hover, .ds-comment__reply:hover, a.ds-accent-link:hover, button.ds-accent-link:hover {
+  opacity: var(--o-hover);
+}
+.ds-card__thumb { transition: opacity var(--t-fast) ease; }
+.ds-card:hover .ds-card__thumb { opacity: 0.85; }
+:disabled { opacity: var(--o-disabled); cursor: default; }
+.is-dragging { opacity: 0.4; }
+.is-drop-target { opacity: var(--o-hover); }
+
+@keyframes ds-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Menu contextuel (clic droit) */
+.ds-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 180px;
+  padding: 4px;
+  border-radius: var(--r-menu);
+  background: var(--c-white);
+  border: 1px solid var(--c-surface-button);
+  animation: ds-fade-in var(--t-fast) ease;
+}
+.ds-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: var(--fs-ui);
+  color: var(--c-ink);
+  text-align: left;
+  white-space: nowrap;
+}
+.ds-menu__item:hover { background: var(--c-bg); }
+.ds-menu__item.is-danger { color: var(--c-orange); }
+.ds-menu__item.is-muted { color: var(--c-muted-1); }
+.ds-menu__sep { height: 1px; margin: 4px 6px; background: var(--c-surface-button); }
+
+/* Texte modifiable sur place : même typo que le texte affiché */
+.ds-edit {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  background: transparent;
+  resize: none;
+}
+.ds-edit::placeholder { color: var(--c-muted-4); opacity: 1; }
+.ds-editable { cursor: text; }
+.ds-edit-placeholder { color: var(--c-muted-4); }
