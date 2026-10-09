@@ -13,9 +13,11 @@ interface Props {
   readOnly?: boolean
   className?: string
   allowEmpty?: boolean
+  /** Faux : on n'entre en modification que via `editing` (double-clic, menu). */
+  clickToEdit?: boolean
 }
 
-export function InlineEdit({ value, onSave, placeholder, multiline, editing: ext, onEditingChange, readOnly, className, allowEmpty }: Props) {
+export function InlineEdit({ value, onSave, placeholder, multiline, editing: ext, onEditingChange, readOnly, className, allowEmpty, clickToEdit = true }: Props) {
   const [inner, setInner] = useState(false)
   const editing = ext ?? inner
   const setEditing = (v: boolean) => (onEditingChange ? onEditingChange(v) : setInner(v))
@@ -49,6 +51,7 @@ export function InlineEdit({ value, onSave, placeholder, multiline, editing: ext
 
   if (readOnly) return <span className={className}>{value}</span>
 
+  if (!editing && !clickToEdit) return <span className={className}>{value}</span>
   if (!editing)
     return (
       <span className={`${className ?? ''} ds-editable`} onClick={() => setEditing(true)} title="Cliquer pour modifier">

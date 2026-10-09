@@ -106,19 +106,21 @@
   --dash-stats-h: 36px;
 
   /* Enregistreur */
-  --rec-bar-w: 73px;
+  --rec-bar-w: 73px;             /* barre de contrôle flottante */
   --rec-bar-pad: 8px;
-  --rec-bar-btn: 57px;           /* pause, recommencer, On/Off (largeur) */
-  --rec-toggle-h: 39px;
+  --rec-handle-h: 22.5px;        /* zone de la poignée (6 points) */
+  --rec-bar-btn: 57px;           /* largeur de On / Off */
+  --rec-toggle-h: 38px;          /* hauteur de « On » et de « Off » */
+  --rec-circle: 57px;            /* pause, recommencer */
   --rec-timer-w: 43px;
   --rec-timer-h: 25px;
   --rec-gap: 15px;
-  --rec-panel-w: 221px;
+  --rec-panel-w: 221px;          /* panneau des options */
   --rec-panel-pad: 18px;
-  --rec-option-h: 49px;
-  --rec-option-gap: 16px;
+  --rec-option-h: 50px;
+  --rec-option-gap: 15px;
   --rec-go: 87px;
-  --rec-bubble: 163px;           /* bulle caméra, collée en bas à gauche */
+  --rec-bubble: 164px;           /* bulle caméra, collée en bas à gauche */
 
   /* Pages vidéo */
   --video-side-w: 419px;         /* panneau commentaires (#e8e8e8) ; la zone gauche prend le reste */
@@ -312,10 +314,10 @@ button { cursor: pointer; }
 .ds-option {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   width: 100%;
   height: var(--rec-option-h);
-  padding: 0 19px;
+  padding: 1px 18.5px 0;
   border-radius: var(--r-pill);
   background: var(--c-white);
   font-size: var(--fs-body);
@@ -339,8 +341,9 @@ button { cursor: pointer; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--rec-bar-btn);
-  height: var(--rec-bar-btn);
+  flex: none;
+  width: var(--rec-circle);
+  height: var(--rec-circle);
   border-radius: var(--r-round);
   background: var(--c-white);
   color: var(--c-ink);

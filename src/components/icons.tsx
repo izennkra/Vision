@@ -25,7 +25,7 @@ type P = { size?: number; color?: string }
 export function IconFilter({ size = 14, color = 'currentColor' }: P) {
   const wave = 'M0 6 q1.5 -1.6 3 0 t3 0 t3 0'
   return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round">
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1" strokeLinecap="round">
       <g transform="rotate(-55 7 7)">
         <path d={wave} transform="translate(2.5 -3)" />
         <path d={wave} transform="translate(2.5 1)" />

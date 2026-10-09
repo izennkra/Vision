@@ -1,0 +1,62 @@
+/* Enregistreur — mesures de la frame de 1440 px. */
+.rec { position: relative; height: 100vh; overflow: hidden; }
+
+/* Panneau des options, en haut à droite */
+.rec__panel {
+  position: absolute;
+  top: 28.5px;
+  right: 30.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--rec-option-gap);
+  width: var(--rec-panel-w);
+  padding: var(--rec-panel-pad) var(--rec-panel-pad) 17px;
+  background: var(--c-surface);
+  transition: opacity var(--t-fast) ease;
+}
+.rec__panel.is-hidden { opacity: 0; pointer-events: none; }
+.rec__panel .ds-option svg { flex: none; }
+.ds-option.is-off { color: var(--c-muted-3); }
+.rec__go { width: var(--rec-go); height: var(--rec-go); }
+.rec__note { margin: 0; font-size: var(--fs-tab); color: var(--c-muted-1); text-align: center; }
+
+/* Barre de contrôle flottante, à gauche, centrée verticalement par défaut */
+.rec__bar {
+  position: fixed;
+  left: 31px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--rec-gap);
+  width: var(--rec-bar-w);
+  padding: 0 var(--rec-bar-pad) 7px;
+  background: var(--c-surface);
+}
+.rec__handle {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  height: var(--rec-handle-h);
+  margin-bottom: calc(-1 * var(--rec-gap));
+  padding-top: 7px;
+  cursor: grab;
+  touch-action: none;
+}
+.rec__handle:active { cursor: grabbing; }
+
+/* Bulle caméra, collée en bas à gauche */
+.rec__bubble {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: var(--rec-bubble);
+  height: var(--rec-bubble);
+  border-radius: var(--r-round);
+  overflow: hidden;
+  animation: ds-fade-in var(--t-fast) ease;
+}

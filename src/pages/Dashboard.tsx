@@ -174,6 +174,7 @@ export default function Dashboard() {
                   onEditingChange={(v) => setRenamingClient(v ? c.id : null)}
                   onSave={(name) => renameClient(c.id, name)}
                   className="dash__client-name"
+                  clickToEdit={false}
                 />
               </div>
             ))}

@@ -151,7 +151,7 @@ export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, 
             aria-label="Dicter le commentaire"
             title={dictation.supported ? 'Dicter' : 'Dictée non disponible dans ce navigateur'}
           >
-            <IconMic size={19} />
+            <IconMic size={20} weight="regular" />
           </button>
         </div>
         <button className="ds-round-primary comments__send" onClick={send} aria-label="Envoyer">

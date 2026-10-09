@@ -2,9 +2,10 @@
 // sous-liste pour « Déplacer vers… ».
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { IconCheck } from './icons'
 
 export type MenuItem =
-  | { label: string; onSelect: () => void; danger?: boolean; confirm?: string; muted?: boolean }
+  | { label: string; onSelect: () => void; danger?: boolean; confirm?: string; muted?: boolean; checked?: boolean }
   | { label: string; children: MenuItem[] }
   | 'separator'
 
@@ -93,6 +94,7 @@ function Menu({ x, y, items, onClose }: { x: number; y: number; items: MenuItem[
             }}
           >
             {isArmed ? item.confirm : item.label}
+            {item.checked && <IconCheck size={12} style={{ marginLeft: 'auto' }} />}
           </button>
         )
       })}
