@@ -13,7 +13,7 @@ interface VisionsDB extends DBSchema {
   chunks: { key: [ID, number]; value: VideoChunk; indexes: { byVideo: ID } }
   thumbnails: { key: string; value: { key: string; data: Blob } }
   comments: { key: ID; value: Comment; indexes: { byVideo: ID } }
-  views: { key: ID; value: View; indexes: { byVideo: ID } }
+  views: { key: ID; value: View; indexes: { byVideo: ID; byViewer: string } }
   meta: { key: string; value: { key: string; value: unknown } }
 }
 
@@ -23,29 +23,65 @@ const DEFAULT_LIMIT = 24
 export const newId = () => crypto.randomUUID()
 const now = () => new Date().toISOString()
 
+function createStores(db: IDBPDatabase<VisionsDB>) {
+  db.createObjectStore('clients', { keyPath: 'id' })
+  const videos = db.createObjectStore('videos', { keyPath: 'id' })
+  videos.createIndex('byCreatedAt', 'createdAt')
+  videos.createIndex('byShareToken', 'shareToken', { unique: true })
+  const chunks = db.createObjectStore('chunks', { keyPath: ['videoId', 'index'] })
+  chunks.createIndex('byVideo', 'videoId')
+  db.createObjectStore('thumbnails', { keyPath: 'key' })
+  db.createObjectStore('comments', { keyPath: 'id' }).createIndex('byVideo', 'videoId')
+  db.createObjectStore('views', { keyPath: 'id' }).createIndex('byVideo', 'videoId')
+  db.createObjectStore('meta', { keyPath: 'key' })
+}
+
+/** Le dossier et tous ses sous-dossiers. */
+export function withDescendants(id: ID, clients: Client[]): Set<ID> {
+  const ids = new Set<ID>([id])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const c of clients)
+      if (c.parentId && ids.has(c.parentId) && !ids.has(c.id)) {
+        ids.add(c.id)
+        grew = true
+      }
+  }
+  return ids
+}
+
 export class LocalRepository implements Repository {
   private dbp: Promise<IDBPDatabase<VisionsDB>>
   private playbackUrls = new Map<ID, string>()
 
   constructor() {
-    this.dbp = openDB<VisionsDB>(DB_NAME, 1, {
-      upgrade(db) {
-        db.createObjectStore('clients', { keyPath: 'id' })
-        const videos = db.createObjectStore('videos', { keyPath: 'id' })
-        videos.createIndex('byCreatedAt', 'createdAt')
-        videos.createIndex('byShareToken', 'shareToken', { unique: true })
-        const chunks = db.createObjectStore('chunks', { keyPath: ['videoId', 'index'] })
-        chunks.createIndex('byVideo', 'videoId')
-        db.createObjectStore('thumbnails', { keyPath: 'key' })
-        db.createObjectStore('comments', { keyPath: 'id' }).createIndex('byVideo', 'videoId')
-        db.createObjectStore('views', { keyPath: 'id' }).createIndex('byVideo', 'videoId')
-        db.createObjectStore('meta', { keyPath: 'key' })
+    this.dbp = openDB<VisionsDB>(DB_NAME, 2, {
+      async upgrade(db, oldVersion, _newVersion, tx) {
+        if (oldVersion < 1) createStores(db)
+        // v2 : sous-dossiers (parentId) et regroupement des vues par navigateur (viewerId).
+        if (oldVersion < 2) {
+          if (oldVersion >= 1) {
+            let c = await tx.objectStore('clients').openCursor()
+            while (c) {
+              await c.update({ ...c.value, parentId: c.value.parentId ?? null })
+              c = await c.continue()
+            }
+            let v = await tx.objectStore('views').openCursor()
+            while (v) {
+              await v.update({ ...v.value, viewerId: v.value.viewerId ?? v.value.id })
+              v = await v.continue()
+            }
+          }
+          tx.objectStore('views').createIndex('byViewer', 'viewerId')
+        }
       },
     }).then(async (db) => {
       // Données de test, insérées une seule fois.
       if (!(await db.get('meta', 'seeded'))) {
         const data = seed()
-        const tx = db.transaction(['clients', 'videos', 'comments', 'meta'], 'readwrite')
+        const tx = db.transaction(['clients', 'videos', 'comments', 'views', 'meta'], 'readwrite')
+        for (const v of data.views) tx.objectStore('views').put(v)
         for (const c of data.clients) tx.objectStore('clients').put(c)
         for (const v of data.videos) tx.objectStore('videos').put(v)
         for (const c of data.comments) tx.objectStore('comments').put(c)
@@ -62,8 +98,8 @@ export class LocalRepository implements Repository {
     return clients.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   }
 
-  async createClient(name: string) {
-    const client: Client = { id: newId(), name, createdAt: now() }
+  async createClient(name: string, parentId: ID | null = null) {
+    const client: Client = { id: newId(), name, parentId, createdAt: now() }
     await (await this.dbp).put('clients', client)
     return client
   }
@@ -79,11 +115,12 @@ export class LocalRepository implements Repository {
 
   async deleteClient(id: ID) {
     const db = await this.dbp
+    const ids = withDescendants(id, await db.getAll('clients'))
     const tx = db.transaction(['clients', 'videos'], 'readwrite')
-    tx.objectStore('clients').delete(id)
+    for (const x of ids) tx.objectStore('clients').delete(x)
     let c = await tx.objectStore('videos').openCursor()
     while (c) {
-      if (c.value.clientId === id) await c.update({ ...c.value, clientId: null })
+      if (c.value.clientId && ids.has(c.value.clientId)) await c.update({ ...c.value, clientId: null })
       c = await c.continue()
     }
     await tx.done
@@ -94,9 +131,10 @@ export class LocalRepository implements Repository {
   async listVideos({ clientId, search, cursor, limit = DEFAULT_LIMIT }: VideoQuery): Promise<Page<Video>> {
     const db = await this.dbp
     const needle = search?.trim().toLowerCase() ?? ''
+    const folder = clientId == null ? null : withDescendants(clientId, await db.getAll('clients'))
     const matches = (v: Video) =>
       v.status !== 'recording' &&
-      (clientId == null || v.clientId === clientId) &&
+      (folder == null || (v.clientId != null && folder.has(v.clientId))) &&
       (!needle || v.title.toLowerCase().includes(needle))
 
     const items: Video[] = []
@@ -198,7 +236,10 @@ export class LocalRepository implements Repository {
     await tx.done
   }
 
-  async finishRecording(videoId: ID, { duration, thumbnail }: { duration: number; thumbnail: Blob | null }) {
+  async finishRecording(
+    videoId: ID,
+    { duration, thumbnail, width, height }: { duration: number; thumbnail: Blob | null; width?: number; height?: number },
+  ) {
     const db = await this.dbp
     const video = await db.get('videos', videoId)
     if (!video) throw new Error('Vidéo introuvable')
@@ -207,7 +248,7 @@ export class LocalRepository implements Repository {
       await db.put('thumbnails', { key, data: thumbnail })
       video.thumbnailKey = key
     }
-    const done: Video = { ...video, duration, status: 'draft', updatedAt: now() }
+    const done: Video = { ...video, duration, width, height, status: 'draft', updatedAt: now() }
     await db.put('videos', done)
     return done
   }
@@ -289,5 +330,21 @@ export class LocalRepository implements Repository {
     const db = await this.dbp
     const view = await db.get('views', id)
     if (view && watchedRatio > view.watchedRatio) await db.put('views', { ...view, watchedRatio })
+  }
+
+  async listViews(videoId: ID) {
+    const views = await (await this.dbp).getAllFromIndex('views', 'byVideo', videoId)
+    return views.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+  }
+
+  async setViewerName(viewerId: string, name: string) {
+    const db = await this.dbp
+    const tx = db.transaction('views', 'readwrite')
+    let c = await tx.store.index('byViewer').openCursor(viewerId)
+    while (c) {
+      await c.update({ ...c.value, viewer: name })
+      c = await c.continue()
+    }
+    await tx.done
   }
 }

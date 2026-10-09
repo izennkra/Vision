@@ -82,3 +82,22 @@
 .dash__folder-row:hover .dash__add:hover { opacity: var(--o-hover); }
 .dash__client-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash__item { cursor: default; }
+
+.ds-nav-item--sub { height: 34px; }
+.dash__empty { margin: 20px 0 0; font-size: var(--fs-ui); color: var(--c-muted-2); }
+.dash__card-client { color: var(--c-muted-2); }
+
+/* Étiquette « Brouillon » : vidéo pas encore partagée */
+.dash__draft {
+  position: absolute;
+  top: 11px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-ink-soft);
+  color: var(--c-on-dark);
+  font-size: var(--fs-small);
+}

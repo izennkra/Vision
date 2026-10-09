@@ -15,13 +15,15 @@ interface Props {
   poster?: string | null
   /** Durée connue (secondes) : utile tant que le fichier n'a pas annoncé la sienne. */
   knownDuration?: number
+  /** Format de la vidéo (largeur / hauteur), connu avant le chargement si possible. */
+  aspect?: number
   markers?: number[]
   onFirstPlay?: () => void
-  onProgress?: (ratio: number) => void
+  onProgress?: (ratio: number, seconds: number) => void
 }
 
 export const Player = forwardRef<PlayerHandle, Props>(function Player(
-  { src, poster, knownDuration = 0, markers = [], onFirstPlay, onProgress },
+  { src, poster, knownDuration = 0, aspect: knownAspect, markers = [], onFirstPlay, onProgress },
   ref,
 ) {
   const box = useRef<HTMLDivElement>(null)
@@ -31,6 +33,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(knownDuration)
   const [idle, setIdle] = useState(false)
+  const [aspect, setAspect] = useState(knownAspect ?? 16 / 9)
   const idleTimer = useRef<number>(undefined)
   const firstPlay = useRef(false)
 
@@ -60,6 +63,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const onMeta = () => {
     const v = video.current
     if (!v) return
+    if (v.videoWidth && v.videoHeight) setAspect(v.videoWidth / v.videoHeight)
     if (Number.isFinite(v.duration)) return setDuration(v.duration)
     const restore = v.currentTime
     const onUpdate = () => {
@@ -101,7 +105,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   return (
     <div
       ref={box}
-      className={`player${started ? ' is-started' : ''}${playing && idle ? ' is-idle' : ''}`}
+      className={`player${started ? ' is-started' : ''}${playing && idle ? ' is-idle' : ''}${poster ? ' has-poster' : ''}`}
+      style={{ aspectRatio: String(aspect) }}
       onMouseMove={wake}
       onMouseLeave={() => setIdle(true)}
     >
@@ -120,9 +125,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           const t = e.currentTarget.currentTime
           if (t > 1e100) return
           setTime(t)
-          if (duration) onProgress?.(t / duration)
+          if (duration) onProgress?.(t / duration, t)
         }}
-        onEnded={() => onProgress?.(1)}
+        onEnded={() => onProgress?.(1, duration)}
       />
       {!started && poster && <img className="player__poster" src={poster} alt="" />}
       {!started && (

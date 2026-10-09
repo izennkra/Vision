@@ -60,3 +60,22 @@
   overflow: hidden;
   animation: ds-fade-in var(--t-fast) ease;
 }
+
+/* Bouton arrêter : rond orange, carré blanc. Gris tant que rien n'est lancé (seul GO démarre). */
+.rec__stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--rec-circle);
+  height: var(--rec-circle);
+  margin-top: 7px;
+  border-radius: var(--r-round);
+  background: var(--c-orange);
+  transition: opacity var(--t-fast) ease, background-color var(--t-fast) ease;
+}
+.rec__stop span { width: 16px; height: 16px; background: var(--c-white); }
+.rec__stop:hover:not(:disabled) { opacity: var(--o-hover); }
+.rec__stop:disabled { opacity: 1; background: var(--c-placeholder); }
+.rec__bar .ds-round-white { transition: opacity var(--t-fast) ease; }
+.rec__bar.is-idle .ds-round-white, .rec__bar.is-idle .ds-timer { opacity: var(--o-disabled); }

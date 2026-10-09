@@ -31,6 +31,7 @@
   --c-surface-button: #dfdfdf; /* bouton « Supprimer », fond du logo, séparateurs */
   --c-tab-active: #e3e3e3;     /* onglet actif (« Récents ») */
   --c-placeholder: #c4c4c4;    /* vignette et lecteur sans image */
+  --c-video-bg: #000000;       /* bords du lecteur quand la vidéo n'est pas au format de l'écran */
   --c-chip: #c2c1c1;           /* pastille « 8 vues » */
   --c-line: #e1e1e1;           /* filet sous les onglets du dashboard */
 
@@ -503,3 +504,22 @@ button { cursor: pointer; }
 .ds-edit::placeholder { color: var(--c-muted-4); opacity: 1; }
 .ds-editable { cursor: text; }
 .ds-edit-placeholder { color: var(--c-muted-4); }
+
+/* Message bref (toast) */
+.ds-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 200;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: var(--r-pill);
+  background: var(--c-ink-soft);
+  color: var(--c-on-dark);
+  font-size: var(--fs-ui);
+  white-space: nowrap;
+  animation: ds-fade-in var(--t-fast) ease;
+}

@@ -12,6 +12,8 @@ import {
 import { useInView } from '../hooks/useInView'
 import { durationLabel, plural, shortDate, timeAgo } from '../lib/format'
 import { downloadVideo, shareVideo, useCopied } from '../lib/share'
+import { folderTree, rootOf } from '../lib/clients'
+import { useToast } from '../components/Toast'
 import './dashboard.css'
 
 const PAGE = 24
@@ -72,8 +74,8 @@ export default function Dashboard() {
   const selectClient = (id: string | null) => setParams(id ? { client: id } : {})
 
   // --- Dossiers clients -------------------------------------------------------
-  const createClient = async () => {
-    const c = await repo.createClient('Nouveau dossier')
+  const createClient = async (parentId: ID | null = null) => {
+    const c = await repo.createClient(parentId ? 'Nouveau client' : 'Nouveau dossier', parentId)
     setFoldersOpen(true)
     await refreshClients()
     setRenamingClient(c.id)
@@ -84,7 +86,7 @@ export default function Dashboard() {
   }
   const deleteClient = async (id: ID) => {
     await repo.deleteClient(id)
-    if (clientId === id) selectClient(null)
+    if (clientId === id || rootOf(clientId, clients) === id) selectClient(null)
     await refreshClients()
     setReload((r) => r + 1)
   }
@@ -93,9 +95,16 @@ export default function Dashboard() {
       { label: 'Ouvrir', onSelect: () => selectClient(c.id) },
       { label: 'Renommer', onSelect: () => setRenamingClient(c.id) },
       'separator',
-      { label: 'Nouveau dossier', onSelect: createClient },
+      // Un seul niveau de sous-dossier : une agence et ses clients (« Elias Studio x Co-labs »).
+      ...(c.parentId ? [] : [{ label: `Nouveau client de ${c.name}`, onSelect: () => createClient(c.id) }]),
+      { label: 'Nouveau dossier', onSelect: () => createClient() },
       'separator',
-      { label: 'Supprimer le dossier', confirm: 'Confirmer (les vidéos restent)', danger: true, onSelect: () => deleteClient(c.id) },
+      {
+        label: c.parentId ? 'Supprimer' : 'Supprimer le dossier',
+        confirm: 'Confirmer (les vidéos restent)',
+        danger: true,
+        onSelect: () => deleteClient(c.id),
+      },
     ])
 
   // --- Vidéos -----------------------------------------------------------------
@@ -147,21 +156,23 @@ export default function Dashboard() {
             <IconProjects size={14} />Tous les projets
           </button>
           <div className="dash__line" />
-          <div className="dash__folder-row" onContextMenu={(e) => openMenu(e, [{ label: 'Nouveau dossier', onSelect: createClient }])}>
+          <div className="dash__folder-row" onContextMenu={(e) => openMenu(e, [{ label: 'Nouveau dossier', onSelect: () => createClient() }])}>
             <button className="ds-folder" onClick={() => setFoldersOpen((o) => !o)}>
               <IconCaret open={foldersOpen} />Clients
             </button>
-            <button className="dash__add ds-hover" onClick={createClient} aria-label="Nouveau dossier" title="Nouveau dossier">
+            <button className="dash__add ds-hover" onClick={() => createClient()} aria-label="Nouveau dossier" title="Nouveau dossier">
               <IconPlus size={10} />
             </button>
           </div>
           {foldersOpen &&
-            clients.map((c) => (
+            folderTree(clients).map(({ client: c, depth }) => (
               <div
                 key={c.id}
                 role="button"
                 tabIndex={0}
-                className={`ds-nav-item${clientId === c.id ? ' is-active' : ''}${dropTarget === c.id ? ' is-drop-target' : ''}`}
+                title={depth ? 'Client de ' + clients.find((x) => x.id === c.parentId)?.name : 'Clic droit : ajouter un client, renommer, supprimer'}
+                style={depth ? { paddingLeft: 9 + depth * 16 } : undefined}
+                className={`ds-nav-item${depth ? ' ds-nav-item--sub' : ''}${clientId === c.id ? ' is-active' : ''}${dropTarget === c.id ? ' is-drop-target' : ''}`}
                 onClick={() => renamingClient !== c.id && selectClient(c.id)}
                 onDoubleClick={() => setRenamingClient(c.id)}
                 onContextMenu={(e) => clientMenu(e, c)}
@@ -188,10 +199,10 @@ export default function Dashboard() {
         <div className="dash__bar">
           <div className="dash__tabs">
             <button className={`ds-tab${clientId ? '' : ' is-active'}`} onClick={() => selectClient(null)}>Récents</button>
-            {clients.map((c) => (
+            {clients.filter((c) => !c.parentId).map((c) => (
               <button
                 key={c.id}
-                className={`ds-tab${clientId === c.id ? ' is-active' : ''}`}
+                className={`ds-tab${clientId && rootOf(clientId, clients) === c.id ? ' is-active' : ''}`}
                 onClick={() => selectClient(c.id)}
                 onContextMenu={(e) => clientMenu(e, c)}
               >
@@ -202,11 +213,21 @@ export default function Dashboard() {
           <span className="dash__count">{plural(total, 'Vidéo', 'Vidéos')}</span>
         </div>
 
+        {!loading && videos.length === 0 && (
+          <p className="dash__empty">
+            {search.trim()
+              ? `Aucune vidéo ne correspond à « ${search.trim()} ».`
+              : clientId
+                ? 'Aucune vidéo dans ce dossier pour l’instant. Glisse une carte ici ou lance une nouvelle vidéo.'
+                : 'Aucune vidéo pour l’instant. Clique sur « Nouvelle vidéo » pour enregistrer la première.'}
+          </p>
+        )}
         <div className="dash__grid">
           {videos.map((v) => (
             <VideoCard
               key={v.id}
               video={v}
+              showClient={!clientId}
               clients={clients}
               onOpen={() => navigate(`/video/${v.id}`)}
               onChange={replaceVideo}
@@ -223,6 +244,8 @@ export default function Dashboard() {
 
 interface CardProps {
   video: Video
+  /** Affiche le dossier de la vidéo (onglet Récents). */
+  showClient: boolean
   clients: Client[]
   onOpen: () => void
   onChange: (v: Video) => void
@@ -230,15 +253,18 @@ interface CardProps {
   onDelete: () => void
 }
 
-function VideoCard({ video, clients, onOpen, onChange, onMove, onDelete }: CardProps) {
+function VideoCard({ video, showClient, clients, onOpen, onChange, onMove, onDelete }: CardProps) {
   const openMenu = useContextMenu()
+  const toast = useToast()
   const [copied, flash] = useCopied()
+  const client = clients.find((c) => c.id === video.clientId)
   const [renaming, setRenaming] = useState(false)
   const [dragging, setDragging] = useState(false)
 
   const share = async () => {
     onChange(await shareVideo(video))
     flash()
+    toast(video.status === 'published' ? 'Lien client copié' : 'Vidéo publiée — lien client copié')
   }
   const rename = async (title: string) => onChange(await repo.updateVideo(video.id, { title }))
 
@@ -249,7 +275,11 @@ function VideoCard({ video, clients, onOpen, onChange, onMove, onDelete }: CardP
     {
       label: 'Déplacer vers',
       children: [
-        ...clients.map((c) => ({ label: c.name, muted: c.id === video.clientId, onSelect: () => onMove(c.id) })),
+        ...folderTree(clients).map(({ client: c, depth }) => ({
+          label: `${depth ? '↳ ' : ''}${c.name}`,
+          checked: c.id === video.clientId,
+          onSelect: () => onMove(c.id),
+        })),
         'separator' as const,
         { label: 'Aucun dossier', muted: video.clientId === null, onSelect: () => onMove(null) },
       ],
@@ -274,6 +304,9 @@ function VideoCard({ video, clients, onOpen, onChange, onMove, onDelete }: CardP
       <div className="ds-card" onClick={() => !renaming && onOpen()}>
         <div className="ds-card__thumb">
           <Thumbnail thumbKey={video.thumbnailKey} />
+          {video.status !== 'published' && (
+            <span className="dash__draft" title="Pas encore partagée : le client ne peut pas la voir">Brouillon</span>
+          )}
           <button
             className="ds-link-dot"
             aria-label="Copier le lien client"
@@ -294,7 +327,10 @@ function VideoCard({ video, clients, onOpen, onChange, onMove, onDelete }: CardP
               video.title
             )}
           </div>
-          <div className="ds-card__age">{timeAgo(video.createdAt)}</div>
+          <div className="ds-card__age">
+            {timeAgo(video.createdAt)}
+            {showClient && client && <span className="dash__card-client"> · {client.name}</span>}
+          </div>
         </div>
       </div>
       <div className="ds-stats">

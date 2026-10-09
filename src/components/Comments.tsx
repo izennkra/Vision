@@ -25,9 +25,11 @@ interface Props {
   currentTime: () => number
   onAdd: (input: { text: string; timestamp: number | null; parentId: ID | null; authorName: string }) => Promise<void>
   onDelete: (id: ID) => void
+  /** Position actuelle de la vidéo (secondes), affichée dans le champ. */
+  nowLabel?: number
 }
 
-export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, currentTime, onAdd, onDelete }: Props) {
+export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, currentTime, onAdd, onDelete, nowLabel = 0 }: Props) {
   const openMenu = useContextMenu()
   const [text, setText] = useState('')
   const [name, setName] = useState(author ?? '')
@@ -116,7 +118,7 @@ export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, 
       </div>
 
       <div className="comments__compose">
-        <div className="ds-comment-input comments__input" onClick={() => field.current?.focus()}>
+        <div className="ds-comment-input comments__input" onClick={(e) => e.target === e.currentTarget && field.current?.focus()}>
           <span className="ds-initials">{initialsOf(who)}</span>
           <div className="comments__fields">
             {!author && (
@@ -138,7 +140,7 @@ export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, 
                   send()
                 }
               }}
-              placeholder={replyTo ? `Répondre à ${replyTo.authorName}...` : 'Écrire un commentaire...'}
+              placeholder={replyTo ? `Répondre à ${replyTo.authorName}...` : `Commenter à ${clock(nowLabel)}...`}
             />
           </div>
           <button

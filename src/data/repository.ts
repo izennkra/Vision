@@ -7,6 +7,7 @@
 import type { Client, Comment, ID, Page, Video, View } from './types'
 
 export interface VideoQuery {
+  /** Dossier : inclut les vidéos de ses sous-dossiers. */
   clientId?: ID | null
   search?: string
   /** Curseur renvoyé par la page précédente. */
@@ -17,9 +18,9 @@ export interface VideoQuery {
 export interface Repository {
   // Clients (dossiers)
   listClients(): Promise<Client[]>
-  createClient(name: string): Promise<Client>
+  createClient(name: string, parentId?: ID | null): Promise<Client>
   renameClient(id: ID, name: string): Promise<Client>
-  /** Supprime le dossier ; ses vidéos sont conservées et deviennent « sans client ». */
+  /** Supprime le dossier et ses sous-dossiers ; leurs vidéos sont conservées et deviennent « sans client ». */
   deleteClient(id: ID): Promise<void>
 
   // Vidéos (métadonnées seulement, jamais le fichier vidéo)
@@ -33,7 +34,7 @@ export interface Repository {
   // et pour un envoi en ligne au fil de l'eau à l'étape 2.
   startRecording(init: { title: string; clientId: ID | null; mimeType: string }): Promise<Video>
   appendChunk(videoId: ID, index: number, data: Blob): Promise<void>
-  finishRecording(videoId: ID, info: { duration: number; thumbnail: Blob | null }): Promise<Video>
+  finishRecording(videoId: ID, info: { duration: number; thumbnail: Blob | null; width?: number; height?: number }): Promise<Video>
 
   // Lecture
   getThumbnail(key: string): Promise<Blob | null>
@@ -49,4 +50,7 @@ export interface Repository {
   // Vues
   recordView(view: Omit<View, 'id'>): Promise<View>
   updateView(id: ID, watchedRatio: number): Promise<void>
+  listViews(videoId: ID): Promise<View[]>
+  /** Donne un nom à toutes les vues d'un même navigateur (quand la personne se présente). */
+  setViewerName(viewerId: string, name: string): Promise<void>
 }

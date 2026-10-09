@@ -1,5 +1,6 @@
 // Enregistreur : panneau d'options (source, caméra, micro, filtre, GO), barre de contrôle flottante
-// et déplaçable (On/Off, chrono, pause, recommencer), bulle caméra en bas à gauche.
+// et déplaçable (arrêter, chrono, pause, recommencer — grisée tant que rien n'est lancé),
+// bulle caméra en bas à gauche.
 // Pendant l'enregistrement, la bulle passe dans une fenêtre Picture-in-Picture qui reste
 // au premier plan même dans une autre application.
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -8,6 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { repo } from '../data'
 import { useContextMenu, type MenuItem } from '../components/ContextMenu'
 import { IconCamera, IconFilter, IconGrip, IconMic, IconPause, IconPlay, IconRestart, IconWindow } from '../components/icons'
+import { useToast } from '../components/Toast'
 import { clock } from '../lib/format'
 import { downloadVideo } from '../lib/share'
 import { cameraFilters, filterCss } from '../recorder/filters'
@@ -37,6 +39,8 @@ export default function Recorder() {
   const [state, setState] = useState<State>('idle')
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [fullScreen, setFullScreen] = useState(false)
+  const toast = useToast()
   const session = useRef<RecordingSession | null>(null)
 
   const active = state === 'recording' || state === 'paused'
@@ -66,8 +70,9 @@ export default function Recorder() {
     session.current = null
     if (!video) return setState('idle')
     await downloadVideo(video) // copie sur le Mac (dossier Téléchargements)
+    toast('Vidéo enregistrée et téléchargée')
     navigate(`/video/${video.id}`)
-  }, [state, pip, navigate])
+  }, [state, pip, navigate, toast])
 
   const go = async () => {
     if (state !== 'idle') return
@@ -85,7 +90,11 @@ export default function Recorder() {
     })
     setState('picking')
     try {
-      await s.pickSource()
+      const picked = await s.pickSource()
+      // Écran entier : la bulle est dessinée dans la vidéo ; la fenêtre flottante serait filmée en double.
+      const whole = picked === 'monitor'
+      setFullScreen(whole)
+      if (whole) pip.close()
     } catch (e) {
       setState('idle')
       // Annulé par l'utilisateur : on referme tout. Sinon (clic « consommé » par la fenêtre flottante),
@@ -146,14 +155,7 @@ export default function Recorder() {
 
   return (
     <div className="rec">
-      <ControlBar
-        state={state}
-        elapsed={elapsed}
-        onOn={go}
-        onOff={stop}
-        onPause={togglePause}
-        onRestart={restart}
-      />
+      <ControlBar state={state} elapsed={elapsed} onStop={stop} onPause={togglePause} onRestart={restart} />
 
       <div className={`rec__panel${state === 'idle' ? '' : ' is-hidden'}`}>
         <button
@@ -218,7 +220,7 @@ export default function Recorder() {
         )}
       </div>
 
-      {devices.camera && !pip.win && (
+      {devices.camera && !pip.win && !(fullScreen && active) && (
         <div className="rec__bubble">
           <CameraVideo stream={devices.camera} filter={filter} />
         </div>
@@ -252,14 +254,13 @@ function CameraVideo({ stream, filter }: { stream: MediaStream; filter: string }
 interface BarProps {
   state: State
   elapsed: number
-  onOn: () => void
-  onOff: () => void
+  onStop: () => void
   onPause: () => void
   onRestart: () => void
 }
 
 /** Barre de contrôle flottante, déplaçable par sa poignée ; position mémorisée. */
-function ControlBar({ state, elapsed, onOn, onOff, onPause, onRestart }: BarProps) {
+function ControlBar({ state, elapsed, onStop, onPause, onRestart }: BarProps) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
     try {
       return JSON.parse(localStorage.getItem(BAR_KEY) ?? 'null')
@@ -298,19 +299,22 @@ function ControlBar({ state, elapsed, onOn, onOff, onPause, onRestart }: BarProp
   }
 
   return (
-    <div ref={bar} className="rec__bar" style={pos ? { left: pos.x, top: pos.y, transform: 'none' } : undefined}>
+    <div
+      ref={bar}
+      className={`rec__bar${recording ? '' : ' is-idle'}`}
+      style={pos ? { left: pos.x, top: pos.y, transform: 'none' } : undefined}
+    >
       <div className="rec__handle" onPointerDown={onPointerDown} title="Déplacer">
         <IconGrip />
       </div>
-      <div className="ds-toggle">
-        <button className={recording ? 'is-on' : ''} onClick={() => state === 'idle' && onOn()}>On</button>
-        <button className={recording ? '' : 'is-on'} onClick={() => recording && onOff()}>Off</button>
-      </div>
+      <button className="rec__stop" onClick={onStop} disabled={!recording} aria-label="Arrêter et enregistrer" title="Arrêter et enregistrer">
+        <span />
+      </button>
       <span className="ds-timer">{clock(elapsed)}</span>
-      <button className="ds-round-white" onClick={() => recording && onPause()} aria-label={state === 'paused' ? 'Reprendre' : 'Pause'}>
+      <button className="ds-round-white" onClick={onPause} disabled={!recording} aria-label={state === 'paused' ? 'Reprendre' : 'Pause'} title={state === 'paused' ? 'Reprendre' : 'Pause'}>
         {state === 'paused' ? <IconPlay size={14} weight="fill" /> : <IconPause />}
       </button>
-      <button className="ds-round-white" onClick={() => recording && onRestart()} aria-label="Recommencer">
+      <button className="ds-round-white" onClick={onRestart} disabled={!recording} aria-label="Recommencer" title="Recommencer depuis le début">
         <IconRestart size={19} weight="regular" />
       </button>
     </div>

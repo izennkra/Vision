@@ -5,10 +5,15 @@
 export type ID = string
 export type ISODate = string
 
-/** Dossier client (Client 1, Client 2…). */
+/**
+ * Dossier client. Un dossier peut contenir des sous-dossiers : une agence (Elias Studio)
+ * et ses propres clients (Co-labs). Le libellé d'une vidéo devient alors « Elias Studio x Co-labs ».
+ */
 export interface Client {
   id: ID
   name: string
+  /** Dossier parent (agence), null pour un dossier de premier niveau. */
+  parentId: ID | null
   createdAt: ISODate
 }
 
@@ -41,6 +46,9 @@ export interface Video {
   /** Compteurs dénormalisés pour afficher le dashboard sans charger les vues. */
   viewCount: number
   commentCount: number
+  /** Dimensions de l'image enregistrée (pour adapter le lecteur au format). */
+  width?: number
+  height?: number
   /** Données de test uniquement : vidéo d'exemple servie depuis /public. */
   sampleUrl?: string
 }
@@ -71,7 +79,9 @@ export interface Comment {
 export interface View {
   id: ID
   videoId: ID
-  /** Nom saisi ou identifiant anonyme du navigateur. */
+  /** Identifiant anonyme du navigateur qui regarde (regroupe les vues d'une même personne). */
+  viewerId: string
+  /** Nom saisi par la personne (« Anonyme » tant qu'elle ne l'a pas donné). */
   viewer: string
   startedAt: ISODate
   /** Proportion regardée, de 0 à 1. */

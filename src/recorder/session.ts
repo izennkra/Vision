@@ -1,7 +1,7 @@
 // Moteur d'enregistrement.
 // - Capture l'écran (entier, une fenêtre ou un onglet), la caméra et le micro.
-// - Dessine la bulle caméra en bas à gauche de la vidéo finale quand on n'enregistre pas l'écran entier
-//   (sur un écran entier, la bulle flottante est déjà visible à l'écran et donc déjà filmée).
+// - Dessine toujours la bulle caméra en bas à gauche de la vidéo finale, quelle que soit la source.
+//   En écran entier, la page ferme la bulle flottante pour qu'elle ne soit pas filmée en double.
 // - Enregistre par morceaux de 2 s directement dans le stockage : la mémoire reste stable,
 //   même sur 1 h 30, et chaque morceau pourra être envoyé en ligne au fil de l'eau (étape 2).
 // - La composition est pilotée par les images reçues (MediaStreamTrackProcessor), pas par
@@ -146,9 +146,17 @@ export class RecordingSession {
     const duration = this.duration
     await this.stopRecorder(false)
     const thumbnail = await this.thumbnail
-    const video = await repo.finishRecording(this.video.id, { duration, thumbnail })
+    const size = this.frameSize()
+    const video = await repo.finishRecording(this.video.id, { duration, thumbnail, ...size })
     this.dispose()
     return video
+  }
+
+  /** Dimensions de l'image enregistrée. */
+  private frameSize() {
+    if (this.canvas?.width) return { width: this.canvas.width, height: this.canvas.height }
+    const s = this.display?.getVideoTracks()[0]?.getSettings()
+    return s?.width && s?.height ? { width: s.width, height: s.height } : {}
   }
 
   /** Abandon complet (quitter la page pendant l'enregistrement, par exemple). */
@@ -182,10 +190,8 @@ export class RecordingSession {
   private buildOutput() {
     const display = this.display!
     const screenTrack = display.getVideoTracks()[0]
-    const surface = (screenTrack.getSettings() as { displaySurface?: Surface }).displaySurface
     const camTrack = this.opts.camera?.getVideoTracks()[0] ?? null
-    const needsBubble = !!camTrack && surface !== 'monitor'
-    const videoTrack = needsBubble ? this.compose(screenTrack, camTrack!) : screenTrack
+    const videoTrack = camTrack ? this.compose(screenTrack, camTrack) : screenTrack
 
     const audio = [...display.getAudioTracks(), ...(this.opts.mic?.getAudioTracks() ?? [])]
     let audioTracks = audio

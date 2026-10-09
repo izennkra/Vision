@@ -7,6 +7,9 @@ import {
   IconMic, IconPause, IconPlay, IconProjects, IconReply, IconRestart, IconSearch, IconSend, IconWindow,
 } from '../components/icons'
 import './design-system-board.css'
+import './recorder.css'
+import './video-page.css'
+import './dashboard.css'
 
 const colors: [string, string, string][] = [
   ['--c-bg', '#F1F1F1', 'Fond de page'],
@@ -182,7 +185,7 @@ export default function DesignSystem() {
         <div className="dsb-row dsb-top">
           <div className="dsb-bar">
             <IconGrip />
-            <div className="ds-toggle"><button>On</button><button className="is-on">Off</button></div>
+            <button className="rec__stop" aria-label="Arrêter"><span /></button>
             <span className="ds-timer">0:00</span>
             <button className="ds-round-white"><IconPause /></button>
             <button className="ds-round-white"><IconRestart size={16} /></button>
@@ -195,6 +198,35 @@ export default function DesignSystem() {
             <button className="ds-round-primary dsb-go">GO</button>
           </div>
           <div className="dsb-bubble"><img src="/avatar.png" alt="" /></div>
+        </div>
+      </Section>
+
+      <Section title="Interactions (ajoutées)">
+        <div className="dsb-row dsb-top">
+          <div className="ds-menu" style={{ position: 'static' }}>
+            <button className="ds-menu__item">Ouvrir</button>
+            <button className="ds-menu__item">Copier le lien client</button>
+            <button className="ds-menu__item">Déplacer vers<span style={{ marginLeft: 'auto' }}>›</span></button>
+            <div className="ds-menu__sep" />
+            <button className="ds-menu__item is-danger">Supprimer</button>
+          </div>
+          <div className="ds-toast" style={{ position: 'static', transform: 'none' }}>Lien client copié</div>
+          <span className="dash__draft" style={{ position: 'static' }}>Brouillon</span>
+          <div className="viewers__panel" style={{ position: 'static' }}>
+            <div className="viewers__head">8 vues<span> · 2 personnes</span></div>
+            <ul className="viewers__list">
+              <li className="viewers__row">
+                <span className="ds-initials">AS</span>
+                <div className="viewers__text"><div className="viewers__name">Anna Simon</div><div className="viewers__meta">Il y a 2h · 3 fois</div></div>
+                <div className="viewers__watch"><div className="viewers__time">4:12</div><div className="viewers__bar"><span style={{ width: '100%' }} /></div></div>
+              </li>
+              <li className="viewers__row">
+                <span className="ds-initials">LM</span>
+                <div className="viewers__text"><div className="viewers__name">Léa Martin</div><div className="viewers__meta">Il y a 17h</div></div>
+                <div className="viewers__watch"><div className="viewers__time">2:16</div><div className="viewers__bar"><span style={{ width: '54%' }} /></div></div>
+              </li>
+            </ul>
+          </div>
         </div>
       </Section>
 

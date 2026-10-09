@@ -10,28 +10,16 @@ import { InlineEdit } from '../components/InlineEdit'
 import { Logo } from '../components/Logo'
 import { Player, type PlayerHandle } from '../components/Player'
 import { useContextMenu } from '../components/ContextMenu'
-import { IconCheck, IconEye, IconInfo, IconLink } from '../components/icons'
-import { plural, timeAgo } from '../lib/format'
+import { IconCheck, IconInfo, IconLink } from '../components/icons'
+import { useToast } from '../components/Toast'
+import { ViewsChip } from '../components/Viewers'
+import { clientLabel, folderTree } from '../lib/clients'
+import { timeAgo } from '../lib/format'
 import { shareUrl, shareVideo, useCopied } from '../lib/share'
+import { saveViewerName, viewerId, viewerName } from '../lib/viewer'
 import './video-page.css'
 
 type Mode = 'owner' | 'client'
-
-const VIEWER_KEY = 'visions:viewer-name'
-const readViewer = () => {
-  try {
-    return localStorage.getItem(VIEWER_KEY)
-  } catch {
-    return null
-  }
-}
-const saveViewer = (name: string) => {
-  try {
-    localStorage.setItem(VIEWER_KEY, name)
-  } catch {
-    /* navigation privée : le nom sera redemandé */
-  }
-}
 
 export default function VideoPage({ mode }: { mode: Mode }) {
   const { id, token } = useParams()
@@ -44,7 +32,9 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const [comments, setComments] = useState<Comment[]>([])
   const [src, setSrc] = useState('')
   const [poster, setPoster] = useState<string | null>(null)
-  const [viewer, setViewer] = useState<string | null>(isOwner ? owner.fullName : readViewer())
+  const [viewer, setViewer] = useState<string | null>(isOwner ? owner.fullName : viewerName())
+  const [now, setNow] = useState(0)
+  const toast = useToast()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [copied, flash] = useCopied()
   const player = useRef<PlayerHandle>(null)
@@ -94,6 +84,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     if (isOwner || !video) return
     const view = await repo.recordView({
       videoId: video.id,
+      viewerId: viewerId(),
       viewer: viewer ?? 'Anonyme',
       startedAt: new Date().toISOString(),
       watchedRatio: 0,
@@ -101,7 +92,8 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     viewId.current = view.id
     setVideo((v) => (v ? { ...v, viewCount: v.viewCount + 1 } : v))
   }
-  const onProgress = (ratio: number) => {
+  const onProgress = (ratio: number, seconds: number) => {
+    setNow(Math.floor(seconds))
     if (!viewId.current || ratio < lastRatio.current + 0.05) return
     lastRatio.current = ratio
     repo.updateView(viewId.current, ratio)
@@ -119,11 +111,21 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const share = async () => {
     setVideo(await shareVideo(video))
     flash()
+    toast(video.status === 'published' ? 'Lien client copié' : 'Vidéo publiée — lien client copié')
+  }
+  const copyClientLink = async () => {
+    await navigator.clipboard.writeText(shareUrl(video.shareToken))
+    flash()
+    toast('Lien copié')
   }
 
   const chooseClient = (e: React.MouseEvent) =>
     openMenu(e, [
-      ...clients.map((c) => ({ label: c.name, muted: c.id === video.clientId, onSelect: () => update({ clientId: c.id }) })),
+      ...folderTree(clients).map(({ client: c, depth }) => ({
+        label: `${depth ? '↳ ' : ''}${c.name}`,
+        checked: c.id === video.clientId,
+        onSelect: () => update({ clientId: c.id }),
+      })),
       'separator' as const,
       { label: 'Aucun client', muted: !video.clientId, onSelect: () => update({ clientId: null }) },
     ])
@@ -161,10 +163,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
                 onClick={async () => {
                   const url = shareUrl(video.shareToken)
                   if (navigator.share) await navigator.share({ title: video.title, url }).catch(() => {})
-                  else {
-                    await navigator.clipboard.writeText(url)
-                    flash()
-                  }
+                  else await copyClientLink()
                 }}
               >
                 Partager
@@ -172,7 +171,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
             )}
             <button
               className="ds-link-dot vp__link"
-              onClick={isOwner ? share : async () => (await navigator.clipboard.writeText(shareUrl(video.shareToken)), flash())}
+              onClick={isOwner ? share : copyClientLink}
               aria-label="Copier le lien client"
               title={copied ? 'Lien copié' : 'Copier le lien client'}
             >
@@ -188,13 +187,13 @@ export default function VideoPage({ mode }: { mode: Mode }) {
                 <InlineEdit value={video.title} readOnly={!isOwner} onSave={(title) => update({ title })} />
                 {isOwner ? (
                   <button className="ds-accent-link vp__client" onClick={chooseClient}>
-                    {client ? `${owner.firstName} x ${client.name}` : 'Choisir un client'}
+                    {clientLabel(client, clients) ?? 'Choisir un client'}
                   </button>
                 ) : (
-                  client && <span className="ds-accent-link vp__client">{owner.firstName} x {client.name}</span>
+                  client && <span className="ds-accent-link vp__client">{clientLabel(client, clients)}</span>
                 )}
               </h1>
-              <span className="ds-chip vp__views"><IconEye size={12} />{plural(video.viewCount, 'vue', 'vues')}</span>
+              <ViewsChip video={video} />
             </div>
             <div className="vp__author">
               <img className="ds-avatar" src={owner.avatarUrl} alt="" />
@@ -210,6 +209,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
               src={src}
               poster={poster}
               knownDuration={video.duration}
+              aspect={video.width && video.height ? video.width / video.height : undefined}
               markers={comments.filter((c) => c.timestamp !== null).map((c) => c.timestamp!)}
               onFirstPlay={onFirstPlay}
               onProgress={onProgress}
@@ -238,8 +238,10 @@ export default function VideoPage({ mode }: { mode: Mode }) {
         author={viewer}
         onAuthorChange={(name) => {
           setViewer(name)
-          saveViewer(name)
+          saveViewerName(name)
+          repo.setViewerName(viewerId(), name)
         }}
+        nowLabel={now}
         canDelete={isOwner}
         onSeek={(t) => player.current?.seek(t)}
         currentTime={() => player.current?.currentTime() ?? 0}
