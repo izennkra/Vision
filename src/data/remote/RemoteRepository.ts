@@ -7,7 +7,7 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { api, ApiError, mediaHref } from '../../lib/api'
-import type { Repository, VideoQuery } from '../repository'
+import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
 import type { AppNotification, Client, Comment, ID, Page, Video, View } from '../types'
 
 interface CacheDB extends DBSchema {
@@ -15,6 +15,23 @@ interface CacheDB extends DBSchema {
 }
 
 const KEEP_LOCAL_MS = 3 * 24 * 3600_000
+const grantKey = (token: string) => `visions:grant:${token}`
+const store = {
+  get(k: string) {
+    try {
+      return localStorage.getItem(k)
+    } catch {
+      return null
+    }
+  },
+  set(k: string, v: string) {
+    try {
+      localStorage.setItem(k, v)
+    } catch {
+      /* navigation privée : non mémorisé */
+    }
+  },
+}
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 type VideoWithUrl = Video & { playbackUrl?: string }
@@ -25,6 +42,8 @@ export class RemoteRepository implements Repository {
   private failures = new Map<ID, unknown>()
   private playback = new Map<ID, string>()
   private tokens = new Map<ID, string>()
+  /** Lien personnel (?p=) utilisé pour ouvrir chaque page client. */
+  private keys = new Map<string, string>()
 
   constructor() {
     this.cache = openDB<CacheDB>('visions-cache', 1, {
@@ -47,6 +66,24 @@ export class RemoteRepository implements Repository {
   /** Page client (lien de partage) : les appels passent par le jeton de la vidéo. */
   private clientToken(videoId: ID) {
     return location.pathname.startsWith('/v/') ? this.tokens.get(videoId) ?? null : null
+  }
+
+  /** Preuves d'accès d'une page client : lien personnel et/ou code déjà saisi. */
+  private shareHeaders(token: string) {
+    const h: Record<string, string> = {}
+    const key = this.keys.get(token)
+    const grant = store.get(grantKey(token))
+    if (key) h['x-share-key'] = key
+    if (grant) h['x-share-grant'] = grant
+    return h
+  }
+
+  private share<T>(token: string, path: string, init: RequestInit & { json?: unknown } = {}) {
+    return api<T>(`share/${token}${path}`, { ...init, headers: { ...this.shareHeaders(token), ...(init.headers as Record<string, string>) } })
+  }
+
+  private lastToken() {
+    return [...this.tokens.values()].pop()
   }
 
   // --- Dossiers ------------------------------------------------------------------------------
@@ -82,18 +119,31 @@ export class RemoteRepository implements Repository {
     }
   }
 
-  async getShared(token: string) {
+  async getShared(token: string, key?: string | null): Promise<SharedResult | null> {
+    if (key) this.keys.set(token, key)
     try {
-      const r = await api<{ video: Video; clients: Client[]; playbackUrl: string }>(`share/${token}`)
+      const r = await this.share<{ video: Video; clients: Client[]; playbackUrl: string; me: { id: ID; name: string } | null }>(token, '')
       this.tokens.set(r.video.id, token)
       this.playback.set(r.video.id, mediaHref(r.playbackUrl))
-      return { video: r.video, clients: r.clients }
-    } catch {
+      return { video: r.video, clients: r.clients, me: r.me }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403 && (e.data.locked === 'code' || e.data.locked === 'private'))
+        return { locked: e.data.locked, codeAllowed: !!e.data.codeAllowed }
       return null
     }
   }
 
-  updateVideo(id: ID, patch: Partial<Pick<Video, 'title' | 'description' | 'clientId' | 'status'>>) {
+  async unlockShare(token: string, code: string) {
+    try {
+      const { grant } = await api<{ grant: string }>(`share/${token}/unlock`, { method: 'POST', json: { code } })
+      store.set(grantKey(token), grant)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  updateVideo(id: ID, patch: VideoPatch) {
     return api<Video>(`videos/${id}`, { method: 'PATCH', json: patch })
   }
 
@@ -183,12 +233,14 @@ export class RemoteRepository implements Repository {
   // --- Commentaires --------------------------------------------------------------------------
   listComments(videoId: ID) {
     const token = this.clientToken(videoId)
-    return api<Comment[]>(token ? `share/${token}/comments` : `videos/${videoId}/comments`)
+    return token ? this.share<Comment[]>(token, '/comments') : api<Comment[]>(`videos/${videoId}/comments`)
   }
 
   addComment(input: Omit<Comment, 'id' | 'createdAt'>) {
     const token = this.clientToken(input.videoId)
-    return api<Comment>(token ? `share/${token}/comments` : `videos/${input.videoId}/comments`, { method: 'POST', json: input })
+    return token
+      ? this.share<Comment>(token, '/comments', { method: 'POST', json: input })
+      : api<Comment>(`videos/${input.videoId}/comments`, { method: 'POST', json: input })
   }
 
   async deleteComment(id: ID) {
@@ -199,22 +251,22 @@ export class RemoteRepository implements Repository {
   recordView(view: Omit<View, 'id'>) {
     const token = this.tokens.get(view.videoId)
     if (!token) return Promise.resolve({ ...view, id: '' })
-    return api<View>(`share/${token}/views`, { method: 'POST', json: view })
+    return this.share<View>(token, '/views', { method: 'POST', json: view })
   }
 
   async updateView(id: ID, watchedRatio: number) {
-    const token = [...this.tokens.values()].pop()
-    if (token && id) await api(`share/${token}/views/${id}`, { method: 'PATCH', json: { watchedRatio } })
+    const token = this.lastToken()
+    if (token && id) await this.share(token, `/views/${id}`, { method: 'PATCH', json: { watchedRatio } })
   }
 
   listViews(videoId: ID) {
     const token = this.clientToken(videoId)
-    return api<View[]>(token ? `share/${token}/views` : `videos/${videoId}/views`)
+    return token ? this.share<View[]>(token, '/views') : api<View[]>(`videos/${videoId}/views`)
   }
 
   async setViewerName(viewerId: string, name: string) {
-    const token = [...this.tokens.values()].pop()
-    if (token) await api(`share/${token}/viewer`, { method: 'POST', json: { viewerId, name } })
+    const token = this.lastToken()
+    if (token) await this.share(token, '/viewer', { method: 'POST', json: { viewerId, name } })
   }
 
   // --- Notifications -------------------------------------------------------------------------

@@ -36,7 +36,7 @@ const colors: [string, string, string][] = [
 
 const type: [string, string, string, number?][] = [
   ['--fs-title', '18 px', 'Bienvenue dans Visions, · Avancée sur le patterns'],
-  ['--fs-body', '14 px', 'Window · Nom du client · Répondre · Supprimer'],
+  ['--fs-body', '14 px', 'Fenêtre · Nom du client · Répondre · Supprimer'],
   ['--fs-ui', '13 px', 'Nouveau fichier · Tous les projets · Sans titre 1'],
   ['--fs-meta', '12 px', 'Publié par Izenn Kra · 8 vues · Il y a 2h'],
   ['--fs-tab', '11,5 px', 'Récents  Client 1  8 Vidéos'],
@@ -130,7 +130,7 @@ export default function DesignSystem() {
           {[
             [<IconProjects size={14} />, 'Tous les projets'], [<IconFolder size={14} />, 'Dossier client'],
             [<IconSearch size={14} />, 'Recherche'], [<IconLink size={14} />, 'Lien'], [<IconEye size={14} />, 'Vues'],
-            [<IconClock size={14} />, 'Durée'], [<IconCalendar size={14} />, 'Date'], [<IconWindow size={16} />, 'Window'],
+            [<IconClock size={14} />, 'Durée'], [<IconCalendar size={14} />, 'Date'], [<IconWindow size={16} />, 'Fenêtre'],
             [<IconCamera size={16} />, 'Caméra'], [<IconMic size={16} />, 'Micro'], [<IconFilter />, 'Filtre caméra'],
             [<IconPause />, 'Pause'], [<IconRestart size={16} />, 'Recommencer'], [<IconReply />, 'Répondre'],
             [<IconSend size={24} />, 'Envoyer'], [<IconPlay size={12} weight="fill" />, 'Lecture'], [<IconInfo />, 'Info'],
@@ -191,7 +191,7 @@ export default function DesignSystem() {
             <button className="ds-round-white"><IconRestart size={16} /></button>
           </div>
           <div className="dsb-panel">
-            <button className="ds-option"><IconWindow size={16} />Window</button>
+            <button className="ds-option"><IconWindow size={16} />Fenêtre</button>
             <button className="ds-option"><IconCamera size={16} />Caméra</button>
             <button className="ds-option"><IconMic size={16} />Micro</button>
             <button className="ds-option"><IconFilter />Filtre caméra</button>
@@ -205,12 +205,12 @@ export default function DesignSystem() {
         <div className="dsb-row dsb-top">
           <div className="ds-menu" style={{ position: 'static' }}>
             <button className="ds-menu__item">Ouvrir</button>
-            <button className="ds-menu__item">Copier le lien client</button>
+            <button className="ds-menu__item">Copier le lien</button>
             <button className="ds-menu__item">Déplacer vers<span style={{ marginLeft: 'auto' }}>›</span></button>
             <div className="ds-menu__sep" />
             <button className="ds-menu__item is-danger">Supprimer</button>
           </div>
-          <div className="ds-toast" style={{ position: 'static', transform: 'none' }}>Lien client copié</div>
+          <div className="ds-toast" style={{ position: 'static', transform: 'none' }}>Lien copié</div>
           <span className="dash__draft" style={{ position: 'static' }}>Brouillon</span>
           <div className="viewers__panel" style={{ position: 'static' }}>
             <div className="viewers__head">8 vues<span> · 2 personnes</span></div>
@@ -235,12 +235,11 @@ export default function DesignSystem() {
           <div className="dsb-stack">
             <div className="dsb-actions">
               <span className="ds-action ds-action--ghost">Supprimer</span>
-              <span className="ds-action ds-action--dark">Publier</span>
-              <span className="ds-link-dot" style={{ color: 'var(--c-bg)' }}><IconLink size={13} /></span>
+              <span className="ds-action ds-action--green">Publier</span>
             </div>
             <div className="dsb-actions">
-              <span className="ds-action ds-action--dark">Partager</span>
-              <span className="ds-link-dot" style={{ color: 'var(--c-bg)' }}><IconLink size={13} /></span>
+              <span className="ds-action ds-action--green">Partager</span>
+              <span className="ds-link-dot" style={{ background: 'var(--c-green)', color: 'var(--c-white)' }}><IconLink size={13} /></span>
             </div>
             <div className="dsb-title">
               Avancée sur le patterns <span className="ds-accent-link">Izenn x Elias Studio</span>

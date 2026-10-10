@@ -29,3 +29,11 @@ export function viewerId() {
 
 export const viewerName = () => read(NAME_KEY)
 export const saveViewerName = (name: string) => write(NAME_KEY, name)
+
+/** Profil choisi sur une vidéo (parmi les personnes prévues, ou « Anonyme »). */
+export const profileFor = (videoId: string) => read(`visions:profile:${videoId}`)
+export const saveProfile = (videoId: string, name: string) => write(`visions:profile:${videoId}`, name)
+
+/** Lien personnel (?p=) déjà ouvert dans ce navigateur : on reste reconnu sans le garder dans l'adresse. */
+export const shareKeyFor = (token: string) => read(`visions:key:${token}`)
+export const saveShareKey = (token: string, key: string) => write(`visions:key:${token}`, key)

@@ -23,10 +23,20 @@ import { SCHEMA } from './schema'
 
 type Row = Record<string, unknown>
 
+/** Colonnes ajoutées après la première version (sans effet si elles existent déjà). */
+const UPGRADES = [
+  "ALTER TABLE videos ADD COLUMN access TEXT NOT NULL DEFAULT 'public'",
+  'ALTER TABLE videos ADD COLUMN access_code TEXT',
+  "ALTER TABLE videos ADD COLUMN people TEXT NOT NULL DEFAULT '[]'",
+]
+
 /** Crée les tables au premier démarrage (une fois par instance du serveur). */
 let schemaReady: Promise<unknown> | null = null
 function ensureSchema(env: Env) {
-  schemaReady ??= env.DB.batch(SCHEMA.map((sql) => env.DB.prepare(sql))).catch((e) => {
+  schemaReady ??= (async () => {
+    await env.DB.batch(SCHEMA.map((sql) => env.DB.prepare(sql)))
+    for (const sql of UPGRADES) await env.DB.prepare(sql).run().catch(() => {}) // « duplicate column » : déjà fait
+  })().catch((e) => {
     schemaReady = null
     throw e
   })
@@ -46,9 +56,11 @@ const initialsOf = (name: string) =>
 
 class HttpError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  data: Record<string, unknown>
+  constructor(status: number, message: string, data: Record<string, unknown> = {}) {
     super(message)
     this.status = status
+    this.data = data
   }
 }
 
@@ -101,8 +113,26 @@ async function mediaUrl(env: Env, id: string, kind: 'video' | 'thumb') {
 
 const toClient = (r: Row) => ({ id: r.id, name: r.name, parentId: r.parent_id ?? null, createdAt: r.created_at })
 
-async function toVideo(env: Env, r: Row) {
+/** Personne autorisée à regarder et commenter : nom affiché, e-mail (invitation), jeton de son lien personnel. */
+type Person = { id: string; name: string; email: string | null; token: string }
+
+function peopleOf(r: Row): Person[] {
+  try {
+    const list = JSON.parse((r.people as string) || '[]')
+    return Array.isArray(list) ? list : []
+  } catch {
+    return []
+  }
+}
+
+/** `forOwner` : réglages complets ; sinon (page client) seulement les noms, jamais les e-mails ni les liens personnels. */
+async function toVideo(env: Env, r: Row, forOwner = true) {
+  const people = peopleOf(r)
   return {
+    access: (r.access as string) || 'public',
+    accessCode: forOwner ? ((r.access_code as string) ?? null) : null,
+    hasCode: !!r.access_code,
+    people: forOwner ? people : people.map((p) => ({ id: p.id, name: p.name, email: null, token: '' })),
     id: r.id,
     title: r.title,
     description: r.description,
@@ -180,9 +210,12 @@ async function notify(env: Env, type: 'view' | 'comment', video: Row, actor: str
     .run()
 }
 
-async function addComment(env: Env, video: Row, input: Row, byOwner: boolean, ownerName: string) {
+async function addComment(env: Env, video: Row, input: Row, byOwner: boolean, ownerName: string, me: Person | null = null) {
   const text = String(input.text ?? '').trim().slice(0, 5000)
-  const author = byOwner ? ownerName : String(input.authorName ?? '').trim().slice(0, 80)
+  let author = byOwner ? ownerName : me ? me.name : String(input.authorName ?? '').trim().slice(0, 80)
+  // Page client : on commente sous l'un des profils prévus par le propriétaire, ou en « Anonyme ».
+  const people = peopleOf(video)
+  if (!byOwner && !me && people.length && !people.some((p) => p.name === author)) author = 'Anonyme'
   if (!text || !author) throw new HttpError(400, 'Nom et commentaire requis')
   const parentId = (input.parentId as string) || null
   const timestamp = typeof input.timestamp === 'number' ? input.timestamp : null
@@ -208,6 +241,30 @@ async function deleteVideo(env: Env, id: string) {
     env.DB.prepare('DELETE FROM views WHERE video_id = ?').bind(id),
     env.DB.prepare('DELETE FROM notifications WHERE video_id = ?').bind(id),
   ])
+}
+
+// --- Accès aux pages client ------------------------------------------------------------------
+// Public : le lien suffit. Privé : il faut le lien personnel d'une personne invitée.
+// Code (optionnel) : sans lien personnel, il faut saisir le code ; on reçoit alors un « laissez-passer » signé.
+
+const GRANT_DAYS = 30
+
+async function grantFor(env: Env, token: string) {
+  const exp = Date.now() + GRANT_DAYS * 86400_000
+  return `${exp}.${await sign(env, `grant:${token}:${exp}`)}`
+}
+
+async function checkShareAccess(req: Request, env: Env, video: Row): Promise<Person | null> {
+  const people = peopleOf(video)
+  const key = req.headers.get('x-share-key')
+  const me = key ? people.find((p) => p.token && same(p.token, key)) : undefined
+  if (me) return me
+  const [exp, sig] = (req.headers.get('x-share-grant') ?? '').split('.')
+  if (exp && sig && Number(exp) > Date.now() && same(sig, await sign(env, `grant:${video.share_token}:${exp}`))) return null
+  const access = (video.access as string) || 'public'
+  const code = video.access_code as string | null
+  if (access === 'public' && !code) return null
+  throw new HttpError(403, access === 'private' ? 'Vidéo privée' : 'Code requis', { locked: access === 'private' ? 'private' : 'code', codeAllowed: !!code })
 }
 
 // --- Lecture des fichiers (vidéo, vignette) ---------------------------------------------------
@@ -264,6 +321,17 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
   // --- Pages client (publiques, via le lien de partage) ---------------------------------------
   if (a === 'share' && b) {
     const video = await getSharedRow(env, b)
+    // Déverrouillage par code (avant la vérification d'accès).
+    if (c === 'unlock' && method === 'POST') {
+      const { code } = await body<{ code: string }>(req)
+      const expected = String(video.access_code ?? '')
+      if (!expected || !same(String(code ?? '').trim().toUpperCase(), expected.toUpperCase())) {
+        await new Promise((r) => setTimeout(r, 600))
+        throw new HttpError(403, 'Code incorrect')
+      }
+      return json({ grant: await grantFor(env, b) })
+    }
+    const me = await checkShareAccess(req, env, video)
     if (!c && method === 'GET') {
       const clients: Row[] = []
       if (video.client_id) {
@@ -277,23 +345,24 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         }
       }
       return json({
-        video: await toVideo(env, video),
+        video: await toVideo(env, video, false),
         clients: clients.map(toClient),
         playbackUrl: await mediaUrl(env, video.id as string, 'video'),
+        me: me ? { id: me.id, name: me.name } : null,
       })
     }
     if (c === 'comments' && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM comments WHERE video_id = ? ORDER BY created_at').bind(video.id).all<Row>()
       return json(results.map(toComment))
     }
-    if (c === 'comments' && method === 'POST') return json(await addComment(env, video, await body<Row>(req), false, ownerName), 201)
+    if (c === 'comments' && method === 'POST') return json(await addComment(env, video, await body<Row>(req), false, ownerName, me), 201)
     if (c === 'views' && !d && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM views WHERE video_id = ? ORDER BY started_at DESC').bind(video.id).all<Row>()
       return json(results.map(toView))
     }
     if (c === 'views' && !d && method === 'POST') {
       const input = await body<Row>(req)
-      const view = { id: uid(), video_id: video.id, viewer_id: String(input.viewerId ?? uid()).slice(0, 64), viewer: String(input.viewer ?? 'Anonyme').slice(0, 80), started_at: now(), watched_ratio: 0 }
+      const view = { id: uid(), video_id: video.id, viewer_id: String(input.viewerId ?? uid()).slice(0, 64), viewer: me ? me.name : String(input.viewer ?? 'Anonyme').slice(0, 80), started_at: now(), watched_ratio: 0 }
       await env.DB.batch([
         env.DB.prepare('INSERT INTO views (id, video_id, viewer_id, viewer, started_at, watched_ratio) VALUES (?, ?, ?, ?, ?, 0)').bind(view.id, view.video_id, view.viewer_id, view.viewer, view.started_at),
         env.DB.prepare('UPDATE videos SET view_count = view_count + 1 WHERE id = ?').bind(video.id),
@@ -404,6 +473,30 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
             sets.push(`${column} = ?`)
             args.push(p[field] ?? null)
           }
+        }
+        if (p.access === 'public' || p.access === 'private') {
+          sets.push('access = ?')
+          args.push(p.access)
+        }
+        if ('accessCode' in p) {
+          const code = String(p.accessCode ?? '').trim().toUpperCase().slice(0, 32)
+          sets.push('access_code = ?')
+          args.push(code || null)
+        }
+        if (Array.isArray(p.people)) {
+          // On garde le lien personnel de chaque personne existante ; les nouvelles en reçoivent un.
+          const before = peopleOf(video)
+          const people: Person[] = (p.people as Partial<Person>[])
+            .map((x) => ({
+              id: x.id && before.some((o) => o.id === x.id) ? x.id : uid(),
+              name: String(x.name ?? '').trim().slice(0, 60),
+              email: String(x.email ?? '').trim().slice(0, 200) || null,
+              token: before.find((o) => o.id === x.id)?.token ?? token12() + token12(),
+            }))
+            .filter((x) => x.name && x.name.toLowerCase() !== 'anonyme')
+            .slice(0, 50)
+          sets.push('people = ?')
+          args.push(JSON.stringify(people))
         }
         if (sets.length) await env.DB.prepare(`UPDATE videos SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`).bind(...args, now(), b).run()
         return json(await toVideo(env, await getVideoRow(env, b)))
@@ -518,7 +611,7 @@ export default {
         return noIndex(cors(req, env, await serveMedia(req, env, path[1], path[2])))
       return noIndex(await env.ASSETS.fetch(req))
     } catch (e) {
-      if (e instanceof HttpError) return cors(req, env, json({ error: e.message }, e.status))
+      if (e instanceof HttpError) return cors(req, env, json({ error: e.message, ...e.data }, e.status))
       console.error(e)
       return cors(req, env, json({ error: 'Erreur serveur' }, 500))
     }

@@ -4,7 +4,7 @@
 // Étape 2 : implémentation Cloudflare (R2 pour les vidéos, base de données pour le reste)
 // qui respecte la même interface — les écrans ne changent pas.
 
-import type { AppNotification, Client, Comment, ID, Page, Video, View } from './types'
+import type { Access, AppNotification, Client, Comment, ID, Page, Person, Video, View } from './types'
 
 export interface VideoQuery {
   /** Dossier : inclut les vidéos de ses sous-dossiers. */
@@ -13,6 +13,18 @@ export interface VideoQuery {
   /** Curseur renvoyé par la page précédente. */
   cursor?: string | null
   limit?: number
+}
+
+/** Page client : soit la vidéo, soit l'accès est verrouillé (code ou invitation nécessaire). */
+export type SharedResult =
+  | { video: Video; clients: Client[]; me: { id: ID; name: string } | null }
+  | { locked: 'code' | 'private'; codeAllowed: boolean }
+
+/** Modifications possibles d'une vidéo par le propriétaire. */
+export type VideoPatch = Partial<Pick<Video, 'title' | 'description' | 'clientId' | 'status'>> & {
+  access?: Access
+  accessCode?: string | null
+  people?: Array<Pick<Person, 'name' | 'email'> & { id?: ID }>
 }
 
 export interface Repository {
@@ -26,9 +38,14 @@ export interface Repository {
   // Vidéos (métadonnées seulement, jamais le fichier vidéo)
   listVideos(query: VideoQuery): Promise<Page<Video>>
   getVideo(id: ID): Promise<Video | null>
-  /** Page client : la vidéo publiée et son dossier (avec l'agence éventuelle). */
-  getShared(token: string): Promise<{ video: Video; clients: Client[] } | null>
-  updateVideo(id: ID, patch: Partial<Pick<Video, 'title' | 'description' | 'clientId' | 'status'>>): Promise<Video>
+  /**
+   * Page client : la vidéo publiée et son dossier (avec l'agence éventuelle), ou le verrou à lever.
+   * `key` : jeton du lien personnel d'une personne invitée (paramètre ?p= de l'adresse).
+   */
+  getShared(token: string, key?: string | null): Promise<SharedResult | null>
+  /** Saisie du code d'accès : vrai si le code est bon (l'accès est alors mémorisé dans ce navigateur). */
+  unlockShare(token: string, code: string): Promise<boolean>
+  updateVideo(id: ID, patch: VideoPatch): Promise<Video>
   deleteVideo(id: ID): Promise<void>
 
   // Enregistrement par morceaux de taille fixe : pensé pour 1 h 30 sans saturer la mémoire

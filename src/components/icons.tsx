@@ -18,6 +18,14 @@ export {
   Plus as IconPlus,
   CornersOut as IconFullscreen,
   Bell as IconBell,
+  CaretLeft as IconBack,
+  CaretDown as IconCaretDown,
+  X as IconClose,
+  EnvelopeSimple as IconMail,
+  Copy as IconCopy,
+  ArrowsClockwise as IconRefresh,
+  LockSimple as IconLock,
+  GlobeSimple as IconGlobe,
 } from '@phosphor-icons/react'
 
 type P = { size?: number; color?: string }

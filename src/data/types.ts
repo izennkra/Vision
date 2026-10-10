@@ -17,6 +17,20 @@ export interface Client {
   createdAt: ISODate
 }
 
+/** Personne prévue pour regarder et commenter (profil choisi dans les commentaires). */
+export interface Person {
+  id: ID
+  /** Nom affiché, par exemple « Victor C. ». */
+  name: string
+  /** E-mail pour l'invitation (partage privé). */
+  email: string | null
+  /** Jeton de son lien personnel (vide sur la page client). */
+  token: string
+}
+
+/** Public : toute personne ayant le lien. Privé : seulement les personnes invitées. */
+export type Access = 'public' | 'private'
+
 export type VideoStatus =
   | 'recording' // enregistrement en cours (morceaux en train d'arriver)
   | 'processing' // enregistrement terminé, finalisation
@@ -46,6 +60,14 @@ export interface Video {
   /** Compteurs dénormalisés pour afficher le dashboard sans charger les vues. */
   viewCount: number
   commentCount: number
+  /** Réglages de partage. */
+  access?: Access
+  /** Code demandé aux personnes sans lien personnel (null : pas de code). Visible seulement par le propriétaire. */
+  accessCode?: string | null
+  /** Vrai si un code est demandé (seule information visible côté client). */
+  hasCode?: boolean
+  /** Personnes prévues (« Anonyme » est toujours proposé en plus). */
+  people?: Person[]
   /** Dimensions de l'image enregistrée (pour adapter le lecteur au format). */
   width?: number
   height?: number

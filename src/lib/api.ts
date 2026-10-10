@@ -33,9 +33,12 @@ export function hasSession() {
 
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  /** Réponse complète du serveur (par exemple le type de verrou d'une page client). */
+  data: Record<string, unknown>
+  constructor(status: number, message: string, data: Record<string, unknown> = {}) {
     super(message)
     this.status = status
+    this.data = data
   }
 }
 
@@ -50,12 +53,13 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   }
   const res = await fetch(`${apiBase}/api/${path}`, { ...init, headers, body: bodyInit })
   if (!res.ok) {
-    const message = await res.json().then((d: { error?: string }) => d.error).catch(() => null)
-    if (res.status === 401 && path !== 'login') {
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    const message = typeof data.error === 'string' ? data.error : null
+    if (res.status === 401 && path !== 'login' && !path.startsWith('share/')) {
       saveSession(null)
       if (!location.pathname.startsWith('/v/')) location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`)
     }
-    throw new ApiError(res.status, message ?? `Erreur ${res.status}`)
+    throw new ApiError(res.status, message ?? `Erreur ${res.status}`, data)
   }
   return res.json() as Promise<T>
 }

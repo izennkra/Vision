@@ -32,7 +32,7 @@ Version en ligne en local (serveur Cloudflare simulé) : `npm run dev:cloud`, pu
 
 ## Fonctionnement
 
-- **Dashboard** : clic sur une carte → page personnelle ; icône lien → copie du lien client (la vidéo est publiée au passage) ; clic droit sur une carte → ouvrir, copier le lien, renommer, déplacer vers un dossier, télécharger, supprimer ; glisser une carte sur un dossier pour l'y ranger.
+- **Dashboard** : clic sur une carte → page personnelle ; icône lien → copie du lien (grisée tant que la vidéo n'est pas publiée avec ses personnes prévues : le clic ouvre alors le panneau « Partager ») ; clic droit sur une carte → ouvrir, copier le lien, renommer, déplacer vers un dossier, télécharger, supprimer ; glisser une carte sur un dossier pour l'y ranger.
 - **Dossiers clients** : « + » au survol de « Clients » (ou clic droit) pour en créer un ; double-clic ou clic droit pour renommer ; clic droit → supprimer (les vidéos sont conservées).
 - **Enregistrement** : GO ouvre le sélecteur du navigateur (écran entier, fenêtre ou onglet). La bulle caméra passe dans une fenêtre flottante (Picture-in-Picture de Chrome) qui reste au premier plan au-dessus de toutes les applications ; on peut la placer en bas à gauche de l'écran, Chrome retient sa position. Pause et arrêt sont aussi disponibles au survol de cette fenêtre.
 - **Bulle dans la vidéo** : toujours dessinée en bas à gauche de la vidéo finale. En écran entier, la fenêtre flottante se ferme au départ pour ne pas être filmée en double.
@@ -40,6 +40,9 @@ Version en ligne en local (serveur Cloudflare simulé) : `npm run dev:cloud`, pu
 - **Format vidéo** : l'application encode elle-même un MP4 standard (H.264 + AAC dans Chrome sur Mac). Il s'ouvre en une fraction de seconde et se parcourt sans tout télécharger, même pour 1 h 30.
 - **Vidéos longues** : le fichier est écrit en morceaux de 8 Mo, gardés dans le navigateur puis envoyés en ligne pendant l'enregistrement. À l'arrêt, la vidéo est en ligne en quelques secondes.
 - **Décompte et fin** : 3, 2, 1 avec un son discret avant le départ ; animation de confirmation à l'arrêt.
+- **Page personnelle** : flèche de retour vers le dashboard ; « Supprimer » et « Publier » ; une fois publiée, « Partager » et l'icône lien (copie en un clic, confirmée par une petite pastille).
+- **Partager** : on prévoit les personnes qui vont regarder (nom, e-mail facultatif) ; « Anonyme » est toujours proposé en plus. Accès **public** (toute personne ayant le lien) ou **privé** (seulement les personnes invitées, avec leur lien personnel). **Code d'accès** facultatif : sans lien personnel, il faut le saisir. Invitation par e-mail : ouvre Mail avec le message et le lien personnel déjà écrits.
+- **Page client** : regarder ne demande rien. Au moment de commenter, une petite fenêtre accrochée au champ propose de choisir son nom parmi les personnes prévues (ou « Anonyme ») ; le choix est retenu. Avec un lien personnel, la personne est reconnue directement.
 - **Notifications** : la cloche du dashboard signale chaque vue et chaque commentaire d'un client (vérification toutes les 30 secondes, notifications du bureau si tu les autorises).
 - **Commentaires et vues** (version en ligne) : enregistrés sur le serveur, visibles par toi et par le client, depuis n'importe quel ordinateur.
 

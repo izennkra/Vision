@@ -11,7 +11,7 @@ import {
 } from '../components/icons'
 import { useInView } from '../hooks/useInView'
 import { durationLabel, plural, shortDate, timeAgo } from '../lib/format'
-import { downloadVideo, shareVideo, useCopied } from '../lib/share'
+import { downloadVideo, linkReady, shareUrl, useCopied } from '../lib/share'
 import { folderTree, rootOf } from '../lib/clients'
 import { useToast } from '../components/Toast'
 import { NotificationBell } from '../components/NotificationBell'
@@ -259,22 +259,26 @@ interface CardProps {
 
 function VideoCard({ video, showClient, clients, onOpen, onChange, onMove, onDelete }: CardProps) {
   const openMenu = useContextMenu()
+  const navigate = useNavigate()
   const toast = useToast()
   const [copied, flash] = useCopied()
   const client = clients.find((c) => c.id === video.clientId)
   const [renaming, setRenaming] = useState(false)
   const [dragging, setDragging] = useState(false)
 
+  const ready = linkReady(video)
+  // Lien direct seulement si la vidéo est publiée et les personnes prévues ; sinon on ouvre le panneau « Partager ».
   const share = async () => {
-    onChange(await shareVideo(video))
+    if (!ready) return navigate(`/video/${video.id}?partage=1`)
+    await navigator.clipboard.writeText(shareUrl(video.shareToken))
     flash()
-    toast(video.status === 'published' ? 'Lien client copié' : 'Vidéo publiée — lien client copié')
+    toast('Lien copié')
   }
   const rename = async (title: string) => onChange(await repo.updateVideo(video.id, { title }))
 
   const menu: MenuItem[] = [
     { label: 'Ouvrir', onSelect: onOpen },
-    { label: 'Copier le lien client', onSelect: share },
+    { label: ready ? 'Copier le lien' : 'Partager...', onSelect: share },
     { label: 'Renommer', onSelect: () => setRenaming(true) },
     {
       label: 'Déplacer vers',
@@ -312,9 +316,9 @@ function VideoCard({ video, showClient, clients, onOpen, onChange, onMove, onDel
             <span className="dash__draft" title="Pas encore partagée : le client ne peut pas la voir">Brouillon</span>
           )}
           <button
-            className="ds-link-dot"
-            aria-label="Copier le lien client"
-            title={copied ? 'Lien copié' : 'Copier le lien client'}
+            className={`ds-link-dot${ready ? '' : ' is-muted'}`}
+            aria-label={ready ? 'Copier le lien' : 'Partager'}
+            title={copied ? 'Lien copié' : ready ? 'Copier le lien' : 'Partager : prévoir les personnes'}
             onClick={(e) => {
               e.stopPropagation()
               share()

@@ -1,8 +1,39 @@
 // Lien de partage client (étape 1 : simulé en local, étape 2 : vrai lien public).
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { repo, type Video } from '../data'
+import { owner } from '../config'
+import { repo, type Person, type Video } from '../data'
 
 export const shareUrl = (token: string) => `${window.location.origin}/v/${token}`
+
+/** Lien personnel d'une personne invitée : elle est reconnue sans rien choisir, même si la vidéo est privée. */
+export const personalUrl = (video: Video, person: Person) => `${shareUrl(video.shareToken)}?p=${person.token}`
+
+/** Le lien direct n'est proposé qu'une fois la vidéo publiée et les personnes prévues. */
+export const linkReady = (video: Video) => video.status === 'published' && (video.people?.length ?? 0) > 0
+
+/** Code d'accès lisible : 6 caractères, sans 0/O ni 1/I pour éviter les confusions. */
+export function newAccessCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => chars[n % chars.length]).join('')
+}
+
+/** Invitation par e-mail : ouvre l'app Mail avec le message prérempli et le lien personnel. */
+export function inviteMailto(video: Video, person: Person) {
+  const first = person.name.split(/\s+/)[0]
+  const lines = [
+    `Bonjour ${first},`,
+    '',
+    `Voici la vidéo « ${video.title} » :`,
+    personalUrl(video, person),
+    '',
+    'Vous pouvez la regarder et laisser vos commentaires directement sur la vidéo, au moment qui vous intéresse.',
+    '',
+    'À bientôt,',
+    owner.fullName,
+  ]
+  const q = `subject=${encodeURIComponent(`Vidéo : ${video.title}`)}&body=${encodeURIComponent(lines.join('\n'))}`
+  return `mailto:${encodeURIComponent(person.email ?? '')}?${q}`
+}
 
 /**
  * Copie le lien de la page client. Partager une vidéo encore en brouillon la publie :

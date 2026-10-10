@@ -33,6 +33,13 @@ export function seed() {
       createdAt: ago(1),
       updatedAt: ago(1),
       shareToken: 'patterns01',
+      access: 'public',
+      accessCode: null,
+      people: [
+        { id: 'p-victor', name: 'Victor C.', email: null, token: 'victor0000000001' },
+        { id: 'p-cyrile', name: 'Cyrile C.', email: null, token: 'cyrile0000000002' },
+        { id: 'p-lola', name: 'Lola K.', email: null, token: 'lola000000000003' },
+      ],
       viewCount: 8,
       commentCount: 3,
     },

@@ -104,3 +104,4 @@
   color: var(--c-on-dark);
   font-size: var(--fs-small);
 }
+.ds-card__thumb .ds-link-dot.is-muted { background: var(--c-placeholder); color: var(--c-white); }

@@ -3,8 +3,8 @@
 // lister le dashboard ne charge jamais de fichier vidéo.
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import type { Repository, VideoQuery } from '../repository'
-import type { AppNotification, Client, Comment, ID, Page, Video, VideoChunk, View } from '../types'
+import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
+import type { AppNotification, Client, Comment, ID, Page, Person, Video, VideoChunk, View } from '../types'
 import { owner } from '../../config'
 import { seed } from './seed'
 
@@ -51,6 +51,22 @@ export function withDescendants(id: ID, clients: Client[]): Set<ID> {
       }
   }
   return ids
+}
+
+// Accès déverrouillé par code, mémorisé dans ce navigateur.
+const readGrant = (token: string) => {
+  try {
+    return localStorage.getItem(`visions:grant:${token}`) === '1'
+  } catch {
+    return false
+  }
+}
+const writeGrant = (token: string) => {
+  try {
+    localStorage.setItem(`visions:grant:${token}`, '1')
+  } catch {
+    /* navigation privée : le code sera redemandé */
+  }
 }
 
 export class LocalRepository implements Repository {
@@ -173,10 +189,17 @@ export class LocalRepository implements Repository {
     return (await (await this.dbp).get('videos', id)) ?? null
   }
 
-  async getShared(token: string) {
+  async getShared(token: string, key?: string | null): Promise<SharedResult | null> {
     const db = await this.dbp
     const video = await db.getFromIndex('videos', 'byShareToken', token)
     if (!video || video.status !== 'published') return null
+    // Même règles que le serveur : lien personnel, code déjà saisi, ou vidéo publique sans code.
+    const people = video.people ?? []
+    const me = key ? people.find((p) => p.token === key) : undefined
+    const unlocked = readGrant(token)
+    const access = video.access ?? 'public'
+    if (!me && !unlocked && (access === 'private' || video.accessCode))
+      return { locked: access === 'private' ? 'private' : 'code', codeAllowed: !!video.accessCode }
     const clients: Client[] = []
     const own = video.clientId ? await db.get('clients', video.clientId) : undefined
     if (own) {
@@ -184,14 +207,33 @@ export class LocalRepository implements Repository {
       const parent = own.parentId ? await db.get('clients', own.parentId) : undefined
       if (parent) clients.push(parent)
     }
-    return { video, clients }
+    const visible: Video = { ...video, accessCode: null, hasCode: !!video.accessCode, people: people.map((p) => ({ ...p, email: null, token: '' })) }
+    return { video: visible, clients, me: me ? { id: me.id, name: me.name } : null }
   }
 
-  async updateVideo(id: ID, patch: Partial<Pick<Video, 'title' | 'description' | 'clientId' | 'status'>>) {
+  async unlockShare(token: string, code: string) {
+    const video = await (await this.dbp).getFromIndex('videos', 'byShareToken', token)
+    const ok = !!video?.accessCode && video.accessCode.toUpperCase() === code.trim().toUpperCase()
+    if (ok) writeGrant(token)
+    return ok
+  }
+
+  async updateVideo(id: ID, patch: VideoPatch) {
     const db = await this.dbp
     const video = await db.get('videos', id)
     if (!video) throw new Error('Vidéo introuvable')
-    const updated = { ...video, ...patch, updatedAt: now() }
+    const { people: peopleInput, accessCode, ...rest } = patch
+    const updated: Video = { ...video, ...rest, updatedAt: now() }
+    if (accessCode !== undefined) updated.accessCode = accessCode?.trim().toUpperCase() || null
+    if (peopleInput) {
+      const before = video.people ?? []
+      updated.people = peopleInput
+        .map((x): Person => {
+          const old = x.id ? before.find((o) => o.id === x.id) : undefined
+          return { id: old?.id ?? newId(), name: x.name.trim(), email: x.email?.trim() || null, token: old?.token ?? newId().replace(/-/g, '') }
+        })
+        .filter((x) => x.name && x.name.toLowerCase() !== 'anonyme')
+    }
     await db.put('videos', updated)
     return updated
   }

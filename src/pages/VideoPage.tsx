@@ -2,27 +2,30 @@
 // - « owner » : page personnelle modifiable (titre, client, description, publier, supprimer) ;
 // - « client » : page de partage (regarder et commenter, rien d'autre).
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { owner } from '../config'
 import { repo, type Client, type Comment, type ID, type Video } from '../data'
-import { Comments, initialsOf } from '../components/Comments'
+import type { SharedResult } from '../data/repository'
+import { ANONYMOUS, Comments, initialsOf } from '../components/Comments'
 import { InlineEdit } from '../components/InlineEdit'
 import { Logo } from '../components/Logo'
 import { Player, type PlayerHandle } from '../components/Player'
 import { useContextMenu } from '../components/ContextMenu'
-import { IconCheck, IconInfo, IconLink } from '../components/icons'
-import { useToast } from '../components/Toast'
+import { IconBack, IconCheck, IconInfo, IconLink, IconLock } from '../components/icons'
+import { SharePanel } from '../components/SharePanel'
 import { ViewsChip } from '../components/Viewers'
 import { clientLabel, folderTree } from '../lib/clients'
 import { timeAgo } from '../lib/format'
-import { shareUrl, shareVideo, useCopied } from '../lib/share'
-import { saveViewerName, viewerId, viewerName } from '../lib/viewer'
+import { linkReady, shareUrl, useCopied } from '../lib/share'
+import { profileFor, saveProfile, saveShareKey, saveViewerName, shareKeyFor, viewerId, viewerName } from '../lib/viewer'
 import './video-page.css'
 
 type Mode = 'owner' | 'client'
+type Lock = Extract<SharedResult, { locked: string }>
 
 export default function VideoPage({ mode }: { mode: Mode }) {
   const { id, token } = useParams()
+  const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const openMenu = useContextMenu()
   const isOwner = mode === 'owner'
@@ -32,14 +35,28 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const [comments, setComments] = useState<Comment[]>([])
   const [src, setSrc] = useState('')
   const [poster, setPoster] = useState<string | null>(null)
-  const [viewer, setViewer] = useState<string | null>(isOwner ? owner.fullName : viewerName())
+  const [viewer, setViewer] = useState<string | null>(isOwner ? owner.fullName : null)
+  const [me, setMe] = useState<{ id: ID; name: string } | null>(null)
+  const [lock, setLock] = useState<Lock | null>(null)
+  const [reload, setReload] = useState(0)
+  const [panel, setPanel] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const [now, setNow] = useState(0)
-  const toast = useToast()
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [copied, flash] = useCopied()
+  const [copied, flash] = useCopied(1600)
   const player = useRef<PlayerHandle>(null)
   const viewId = useRef<ID | null>(null)
   const lastRatio = useRef(0)
+
+  // Lien personnel (?p=) : gardé dans ce navigateur puis retiré de l'adresse (pour ne pas être recopié).
+  // ?partage=1 (depuis le dashboard) : ouvre le panneau « Partager ».
+  const urlKey = params.get('p')
+  useEffect(() => {
+    if (!urlKey && !params.has('partage')) return
+    if (urlKey && token) saveShareKey(token, urlKey)
+    if (params.has('partage')) setPanel(true)
+    setParams({}, { replace: true })
+  }, [urlKey, params, setParams, token])
 
   // Chargement de la vidéo, de son client, de ses commentaires et de sa source.
   useEffect(() => {
@@ -51,9 +68,19 @@ export default function VideoPage({ mode }: { mode: Mode }) {
       if (isOwner) {
         ;[v, all] = await Promise.all([repo.getVideo(id!), repo.listClients()])
       } else {
-        const shared = await repo.getShared(token!)
+        const shared = await repo.getShared(token!, urlKey ?? shareKeyFor(token!))
+        if (cancelled) return
+        if (shared && 'locked' in shared) return setLock(shared)
+        setLock(null)
         v = shared?.video ?? null
         all = shared?.clients ?? []
+        if (shared && v) {
+          setMe(shared.me)
+          // Nom affiché pour les vues : lien personnel, sinon profil déjà choisi sur cette vidéo.
+          const names = (v.people ?? []).map((p) => p.name)
+          const stored = profileFor(v.id)
+          setViewer(shared.me?.name ?? (names.length ? (stored && (stored === ANONYMOUS || names.includes(stored)) ? stored : null) : viewerName()))
+        }
       }
       if (cancelled) return
       if (!v) return setVideo(null)
@@ -74,14 +101,15 @@ export default function VideoPage({ mode }: { mode: Mode }) {
       cancelled = true
       if (posterUrl) URL.revokeObjectURL(posterUrl)
     }
-  }, [id, token, isOwner])
+    // urlKey : lu une seule fois au chargement (l'adresse est nettoyée juste après).
+  }, [id, token, isOwner, reload])
 
   const update = useCallback(
     async (patch: Parameters<typeof repo.updateVideo>[1]) => {
-      if (!video) return
-      const v = await repo.updateVideo(video.id, patch)
+      const v = await repo.updateVideo(video!.id, patch)
       setVideo(v)
       if ('clientId' in patch) setClient(clients.find((c) => c.id === v.clientId) ?? null)
+      return v
     },
     [video, clients],
   )
@@ -106,6 +134,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     repo.updateView(viewId.current, ratio)
   }
 
+  if (lock) return <AccessGate lock={lock} onUnlock={(code) => repo.unlockShare(token!, code)} onDone={() => setReload((n) => n + 1)} />
   if (video === undefined) return <div className="vp" />
   if (video === null)
     return (
@@ -115,15 +144,28 @@ export default function VideoPage({ mode }: { mode: Mode }) {
       </div>
     )
 
-  const share = async () => {
-    setVideo(await shareVideo(video))
-    flash()
-    toast(video.status === 'published' ? 'Lien client copié' : 'Vidéo publiée — lien client copié')
-  }
-  const copyClientLink = async () => {
+  const published = video.status === 'published'
+  // Côté propriétaire, le lien direct reste grisé tant que les personnes ne sont pas prévues.
+  const ready = !isOwner || linkReady(video)
+
+  const copyLink = async () => {
+    if (!ready) return setPanel(true)
     await navigator.clipboard.writeText(shareUrl(video.shareToken))
     flash()
-    toast('Lien copié')
+  }
+
+  // Publier : « Supprimer » et « Publier » s'effacent, puis « Partager » et le lien apparaissent.
+  const publish = async () => {
+    setLeaving(true)
+    const [v] = await Promise.all([update({ status: 'published' }), new Promise((r) => setTimeout(r, 220))])
+    setLeaving(false)
+    if (!v.people?.length) setTimeout(() => setPanel(true), 260)
+  }
+
+  const clientShare = async () => {
+    const url = shareUrl(video.shareToken)
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ title: video.title, url }).catch(() => {})
+    else await copyLink()
   }
 
   const chooseClient = (e: React.MouseEvent) =>
@@ -143,48 +185,42 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     navigate('/')
   }
 
-  const published = video.status === 'published'
-
   return (
     <div className="vp">
       <main className="vp__main">
         <header className="vp__top">
-          {isOwner ? <Link to="/" aria-label="Dashboard" className="ds-hover"><Logo /></Link> : <Logo />}
-          <div className="vp__actions">
-            {isOwner ? (
-              <>
-                <button className="ds-action ds-action--ghost" onClick={remove} onMouseLeave={() => setConfirmDelete(false)}>
-                  {confirmDelete ? 'Confirmer' : 'Supprimer'}
-                </button>
-                <button
-                  className="ds-action ds-action--dark"
-                  onClick={() => update({ status: published ? 'draft' : 'published' })}
-                  title={published ? 'Cliquer pour dépublier' : 'Rendre la vidéo visible par le client'}
-                >
-                  {published ? 'Publiée' : 'Publier'}
-                </button>
-              </>
-            ) : (
-              <button
-                className="ds-action ds-action--dark"
-                onClick={async () => {
-                  const url = shareUrl(video.shareToken)
-                  if (navigator.share) await navigator.share({ title: video.title, url }).catch(() => {})
-                  else await copyClientLink()
-                }}
-              >
-                Partager
-              </button>
+          <div className="vp__brand">
+            {isOwner && (
+              <Link to="/" className="ds-hover vp__back" aria-label="Retour au dashboard" title="Retour au dashboard">
+                <IconBack size={16} />
+              </Link>
             )}
-            <button
-              className="ds-link-dot vp__link"
-              onClick={isOwner ? share : copyClientLink}
-              aria-label="Copier le lien client"
-              title={copied ? 'Lien copié' : 'Copier le lien client'}
-            >
-              {copied ? <IconCheck size={12} /> : <IconLink size={12} />}
-            </button>
+            {isOwner ? <Link to="/" aria-label="Dashboard" className="ds-hover"><Logo /></Link> : <Logo />}
           </div>
+          {isOwner && (!published || leaving) ? (
+            <div className={`vp__actions${leaving ? ' is-leaving' : ''}`}>
+              <button className="ds-action ds-action--ghost" onClick={remove} onMouseLeave={() => setConfirmDelete(false)}>
+                {confirmDelete ? 'Confirmer' : 'Supprimer'}
+              </button>
+              <button className="ds-action ds-action--green" onClick={publish} disabled={leaving}>Publier</button>
+            </div>
+          ) : (
+            <div className="vp__actions is-entering">
+              <button className="ds-action ds-action--green" onClick={isOwner ? () => setPanel(true) : clientShare}>Partager</button>
+              <div className={`vp__copy${copied ? ' is-copied' : ''}`}>
+                <button
+                  className={`ds-link-dot vp__link${ready ? '' : ' is-muted'}`}
+                  onClick={copyLink}
+                  aria-label={ready ? 'Copier le lien' : 'Prévoir les personnes avant de copier le lien'}
+                >
+                  {copied ? <IconCheck size={12} /> : <IconLink size={12} />}
+                </button>
+                <span className="vp__tip" role="status">
+                  {copied ? <><IconCheck size={10} />Lien copié</> : ready ? 'Copier le lien' : 'Ajoutez les personnes'}
+                </span>
+              </div>
+            </div>
+          )}
         </header>
 
         <section className="vp__card">
@@ -242,10 +278,13 @@ export default function VideoPage({ mode }: { mode: Mode }) {
 
       <Comments
         comments={comments}
-        author={viewer}
+        author={isOwner ? owner.fullName : me?.name ?? (video.people?.length ? null : viewer)}
+        profiles={isOwner || me ? undefined : video.people?.map((p) => p.name)}
+        profile={isOwner || me ? null : video.people?.length ? viewer : null}
         onAuthorChange={(name) => {
           setViewer(name)
-          saveViewerName(name)
+          if (video.people?.length) saveProfile(video.id, name)
+          else saveViewerName(name)
           repo.setViewerName(viewerId(), name)
         }}
         nowLabel={now}
@@ -268,6 +307,72 @@ export default function VideoPage({ mode }: { mode: Mode }) {
           setComments((list) => list.filter((c) => c.id !== cid && c.parentId !== cid))
         }}
       />
+
+      {panel && isOwner && (
+        <SharePanel
+          video={video}
+          onChange={update}
+          onClose={() => setPanel(false)}
+          onDelete={async () => {
+            await repo.deleteVideo(video.id)
+            navigate('/')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Page client verrouillée : code d'accès, ou invitation nécessaire (vidéo privée). */
+function AccessGate({ lock, onUnlock, onDone }: { lock: Lock; onUnlock: (code: string) => Promise<boolean>; onDone: () => void }) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const isPrivate = lock.locked === 'private'
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!code.trim() || busy) return
+    setBusy(true)
+    const ok = await onUnlock(code)
+    setBusy(false)
+    if (ok) onDone()
+    else setError(true)
+  }
+  return (
+    <div className="gate">
+      <div className="gate__logo"><Logo /></div>
+      <div className="gate__card">
+        <span className="gate__icon"><IconLock size={20} /></span>
+        <h1 className="gate__title">{isPrivate ? 'Vidéo privée' : 'Vidéo protégée'}</h1>
+        <p className="gate__text">
+          {isPrivate && !lock.codeAllowed
+            ? 'Cette vidéo est réservée aux personnes invitées. Ouvrez le lien personnel reçu par e-mail.'
+            : isPrivate
+              ? 'Ouvrez le lien personnel reçu par e-mail, ou entrez le code d’accès.'
+              : 'Entrez le code d’accès pour regarder la vidéo.'}
+        </p>
+        {lock.codeAllowed && (
+          <form className="gate__form" onSubmit={submit}>
+            <input
+              className={`gate__input${error ? ' is-error' : ''}`}
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value.toUpperCase().replace(/\s/g, ''))
+                setError(false)
+              }}
+              placeholder="Code"
+              autoFocus
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={32}
+              aria-label="Code d’accès"
+            />
+            <button className="gate__submit" disabled={!code.trim() || busy}>{busy ? '...' : 'Valider'}</button>
+          </form>
+        )}
+        {error && <p className="gate__error" role="alert">Code incorrect, vérifiez et réessayez.</p>}
+      </div>
     </div>
   )
 }

@@ -5,7 +5,9 @@ import type { Comment, ID } from '../data'
 import { useDictation } from '../hooks/useDictation'
 import { clock, plural, timeAgo } from '../lib/format'
 import { useContextMenu } from './ContextMenu'
-import { IconMic, IconReply, IconSend } from './icons'
+import { IconCaretDown, IconCheck, IconMic, IconReply, IconSend } from './icons'
+
+export const ANONYMOUS = 'Anonyme'
 
 export const initialsOf = (name: string) =>
   name
@@ -17,8 +19,12 @@ export const initialsOf = (name: string) =>
 
 interface Props {
   comments: Comment[]
-  /** Nom de la personne qui commente (null : on le demande dans le champ). */
+  /** Nom imposé de la personne qui commente (propriétaire, lien personnel). Sinon : profil choisi ou nom saisi. */
   author: string | null
+  /** Profils prévus par le propriétaire : on choisit le sien au moment de commenter (« Anonyme » en plus). */
+  profiles?: string[]
+  /** Profil déjà choisi sur cette vidéo. */
+  profile?: string | null
   onAuthorChange?: (name: string) => void
   canDelete: boolean
   onSeek: (seconds: number) => void
@@ -29,10 +35,15 @@ interface Props {
   nowLabel?: number
 }
 
-export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, currentTime, onAdd, onDelete, nowLabel = 0 }: Props) {
+export function Comments({ comments, author, profiles, profile = null, onAuthorChange, canDelete, onSeek, currentTime, onAdd, onDelete, nowLabel = 0 }: Props) {
   const openMenu = useContextMenu()
   const [text, setText] = useState('')
   const [name, setName] = useState(author ?? '')
+  const picking = !author && !!profiles?.length
+  const [chosen, setChosen] = useState<string | null>(profile)
+  const [picker, setPicker] = useState(false)
+  const sendAfterPick = useRef(false)
+  const compose = useRef<HTMLDivElement>(null)
   const [replyTo, setReplyTo] = useState<Comment | null>(null)
   const [sending, setSending] = useState(false)
   const field = useRef<HTMLTextAreaElement>(null)
@@ -47,21 +58,53 @@ export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, 
     list.current?.scrollTo({ top: list.current.scrollHeight })
   }, [comments.length])
 
-  const who = (author ?? name).trim()
-  const send = async () => {
+  useEffect(() => setChosen(profile), [profile])
+
+  // Le choix du profil se ferme d'un clic ailleurs ou avec Échap.
+  useEffect(() => {
+    if (!picker) return
+    const outside = (e: PointerEvent) => !compose.current?.contains(e.target as Node) && setPicker(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPicker(false)
+    document.addEventListener('pointerdown', outside)
+    window.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [picker])
+
+  const who = (author ?? (picking ? chosen ?? '' : name)).trim()
+  const send = async (as = who) => {
     const body = text.trim()
-    if (!body || !who || sending) return
+    if (!body || sending) return
+    if (!as) {
+      if (picking) {
+        sendAfterPick.current = true
+        setPicker(true)
+      } else document.querySelector<HTMLInputElement>('.comments__name')?.focus()
+      return
+    }
     setSending(true)
-    if (!author) onAuthorChange?.(who)
+    if (!author && !picking) onAuthorChange?.(as)
     await onAdd({
       text: body,
       parentId: replyTo?.id ?? null,
       timestamp: replyTo ? null : Math.floor(currentTime()),
-      authorName: who,
+      authorName: as,
     })
     setText('')
     setReplyTo(null)
     setSending(false)
+  }
+
+  const choose = (p: string) => {
+    setChosen(p)
+    setPicker(false)
+    onAuthorChange?.(p)
+    if (sendAfterPick.current) {
+      sendAfterPick.current = false
+      void send(p)
+    } else requestAnimationFrame(() => field.current?.focus()) // après le rendu : le champ ne rouvre pas le choix
   }
 
   const reply = (c: Comment) => {
@@ -117,11 +160,43 @@ export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, 
         )}
       </div>
 
-      <div className="comments__compose">
+      <div ref={compose} className="comments__compose">
+        {picker && profiles && (
+          <div className="who" role="dialog" aria-label="Qui êtes-vous ?">
+            <div className="who__title">Qui êtes-vous ?</div>
+            <div className="who__hint">Votre nom apparaîtra avec vos commentaires.</div>
+            <div className="who__list">
+              {[...profiles, ANONYMOUS].map((p) => (
+                <button key={p} className={`who__item${p === chosen ? ' is-on' : ''}${p === ANONYMOUS ? ' is-anon' : ''}`} onClick={() => choose(p)}>
+                  <span className="ds-initials">{p === ANONYMOUS ? '?' : initialsOf(p)}</span>
+                  <span className="who__name">{p}</span>
+                  {p === chosen && <IconCheck size={14} />}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="ds-comment-input comments__input" onClick={(e) => e.target === e.currentTarget && field.current?.focus()}>
-          <span className="ds-initials">{initialsOf(who)}</span>
+          {picking ? (
+            <button
+              className={`ds-hover comments__who${chosen ? '' : ' is-empty'}`}
+              onClick={() => setPicker((o) => !o)}
+              aria-label={chosen ? `Commenter en tant que ${chosen} — changer` : 'Choisir votre nom'}
+              title={chosen ? `${chosen} — changer` : 'Choisir votre nom'}
+            >
+              <span className="ds-initials">{chosen ? (chosen === ANONYMOUS ? '?' : initialsOf(chosen)) : '?'}</span>
+              <IconCaretDown size={10} />
+            </button>
+          ) : (
+            <span className="ds-initials">{initialsOf(who)}</span>
+          )}
           <div className="comments__fields">
-            {!author && (
+            {picking && (
+              <button className="ds-hover comments__as" onClick={() => setPicker((o) => !o)}>
+                {chosen ? <>En tant que <strong>{chosen}</strong></> : 'Choisir votre nom'}
+              </button>
+            )}
+            {!author && !picking && (
               <input
                 className="ds-edit comments__name"
                 value={name}
@@ -134,6 +209,7 @@ export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, 
               className="ds-edit comments__text"
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onFocus={() => picking && !chosen && setPicker(true)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
@@ -156,7 +232,7 @@ export function Comments({ comments, author, onAuthorChange, canDelete, onSeek, 
             <IconMic size={20} weight="regular" />
           </button>
         </div>
-        <button className="ds-round-primary comments__send" onClick={send} aria-label="Envoyer">
+        <button className="ds-round-primary comments__send" onClick={() => send()} aria-label="Envoyer">
           <IconSend size={30} />
         </button>
       </div>

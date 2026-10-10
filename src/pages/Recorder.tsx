@@ -201,7 +201,7 @@ export default function Recorder() {
           className="ds-option"
           onClick={(e) => menuAt(e, surfaces.map((s) => ({ label: s.label, checked: surface === s.id, onSelect: () => setSurface(s.id) })))}
         >
-          <IconWindow size={17} weight="regular" />Window
+          <IconWindow size={17} weight="regular" />Fenêtre
         </button>
         <button
           className={`ds-option${camOn ? '' : ' is-off'}`}

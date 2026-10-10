@@ -311,7 +311,7 @@ button { cursor: pointer; }
 
 /* --- Enregistreur -------------------------------------------------------- */
 
-/* Bouton d'option du panneau (Window, Caméra, Micro, Filtre caméra) */
+/* Bouton d'option du panneau (Fenêtre, Caméra, Micro, Filtre caméra) */
 .ds-option {
   display: flex;
   align-items: center;
@@ -387,6 +387,7 @@ button { cursor: pointer; }
 }
 .ds-action--ghost { background: var(--c-surface-button); }
 .ds-action--dark { border-radius: var(--r-pill); background: var(--c-ink-soft); color: var(--c-on-dark); }
+.ds-action--green { border-radius: var(--r-pill); padding: 0 10px; background: var(--c-green); color: var(--c-white); }
 
 /* Lien orange souligné (prénom, client) */
 .ds-accent-link {
