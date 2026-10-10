@@ -100,6 +100,16 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
       timestamp: replyTo ? null : Math.floor(currentTime()),
       authorName: as,
     })
+    // Téléphone : les plus récents sont en haut ; on montre le commentaire qui vient d'être publié.
+    if (phone()) {
+      const target = replyTo ? `[data-id="${replyTo.id}"]` : '.comments__inner > .comment:last-child'
+      requestAnimationFrame(() => {
+        const el = list.current?.querySelector<HTMLElement>(target)
+        if (!el) return
+        const pinned = document.querySelector('.vp__player.is-pinned')?.getBoundingClientRect().height ?? 0
+        window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - pinned - 16, behavior: 'smooth' })
+      })
+    }
     setText('')
     setReplyTo(null)
     setSending(false)
@@ -124,6 +134,7 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
   const item = (c: Comment, isReply = false) => (
     <div
       key={c.id}
+      data-id={c.id}
       className={`comment${isReply ? ' comment--reply' : ''}`}
       onContextMenu={(e) =>
         canDelete &&

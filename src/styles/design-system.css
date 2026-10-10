@@ -455,11 +455,22 @@ button { cursor: pointer; }
 .ds-comment__time, .ds-comment__reply, .ds-accent-link {
   transition: opacity var(--t-fast) ease;
 }
-.ds-btn-primary:hover, .ds-tab:not(.is-active):hover, .ds-nav-item:not(.is-active):hover,
-.ds-folder:hover, .ds-link-dot:hover, .ds-option:hover, .ds-round-primary:hover,
-.ds-round-white:hover, .ds-action:hover, .ds-hover:hover,
-.ds-comment__time:hover, .ds-comment__reply:hover, a.ds-accent-link:hover, button.ds-accent-link:hover {
-  opacity: var(--o-hover);
+/* Avec une souris uniquement : sur téléphone, le survol « reste collé » après un toucher (bouton pâle). */
+@media (hover: hover) {
+  .ds-btn-primary:hover, .ds-tab:not(.is-active):hover, .ds-nav-item:not(.is-active):hover,
+  .ds-folder:hover, .ds-link-dot:hover, .ds-option:hover, .ds-round-primary:hover,
+  .ds-round-white:hover, .ds-action:hover, .ds-hover:hover,
+  .ds-comment__time:hover, .ds-comment__reply:hover, a.ds-accent-link:hover, button.ds-accent-link:hover {
+    opacity: var(--o-hover);
+  }
+}
+/* Au doigt : le même fondu, seulement pendant le toucher. */
+@media (hover: none) {
+  .ds-btn-primary:active, .ds-tab:active, .ds-nav-item:active, .ds-folder:active, .ds-link-dot:active, .ds-option:active,
+  .ds-round-primary:active, .ds-round-white:active, .ds-action:active, .ds-hover:active,
+  .ds-comment__time:active, .ds-comment__reply:active, .ds-accent-link:active {
+    opacity: var(--o-hover);
+  }
 }
 .ds-card__thumb { transition: opacity var(--t-fast) ease; }
 .ds-card:hover .ds-card__thumb { opacity: 0.85; }

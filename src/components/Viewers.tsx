@@ -57,8 +57,11 @@ export function ViewsChip({ video }: { video: Video }) {
         <IconEye size={12} />
         {plural(video.viewCount, 'vue', 'vues')}
       </button>
+      {/* Téléphone : la liste monte du bas de l'écran, par-dessus la vidéo (comme le choix du profil). */}
+      {open && <div className="sheet-backdrop viewers__backdrop" onClick={() => setOpen(false)} aria-hidden />}
       {open && (
-        <div className="viewers__panel">
+        <div className="viewers__panel" role="dialog" aria-label="Qui a regardé la vidéo">
+          <span className="sheet-grip" aria-hidden />
           <div className="viewers__head">
             {plural(video.viewCount, 'vue', 'vues')}
             {viewers && viewers.length > 0 && <span> · {plural(viewers.length, 'personne', 'personnes')}</span>}

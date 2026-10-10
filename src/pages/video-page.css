@@ -544,7 +544,7 @@
 }
 
 /* Compteur dans l'onglet et grip de la feuille « Qui êtes-vous ? » : téléphone uniquement. */
-.side__count, .who__grip, .who__backdrop, .vp__desc-more { display: none; }
+.side__count, .who__grip, .who__backdrop, .vp__desc-more, .sheet-backdrop, .sheet-grip { display: none; }
 
 /* Écran tactile : barre de progression plus facile à attraper au doigt. */
 @media (pointer: coarse) {
@@ -610,8 +610,9 @@
   /* Commentaires */
   .comments { flex: 1; min-height: 0; padding: 0 16px; }
   .comments__list { flex: none; overflow: visible; }
-  .comments__inner { padding: 22px 0 8px; }
-  .comment + .comment { margin-top: 28px; }
+  /* Les commentaires les plus récents en haut (les réponses restent dans l'ordre, sous leur commentaire). */
+  .comments__inner { display: flex; flex-direction: column-reverse; gap: 28px; padding: 22px 0 8px; }
+  .comments__inner > .comment + .comment { margin-top: 0; }
   .comment .ds-comment__head { flex-wrap: wrap; font-size: 15px; }
   .comment .ds-comment__text { font-size: 15px; line-height: 21px; }
   .comment .ds-comment__reply { min-height: 32px; margin-top: 4px; font-size: 13px; }
@@ -643,7 +644,8 @@
   .comments__send svg { width: 22px; height: 22px; }
 
   /* « Qui êtes-vous ? » : feuille qui monte du bas, grandes lignes faciles à toucher. */
-  .who__backdrop { display: block; position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.3); animation: ds-fade-in 200ms ease; }
+  .who__backdrop, .sheet-backdrop { display: block; position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.3); animation: ds-fade-in 200ms ease; }
+  .sheet-grip { flex: none; width: 36px; height: 4px; margin: 0 auto 16px; border-radius: 2px; background: var(--c-surface-button); }
   .who {
     position: fixed;
     left: 0;
@@ -677,5 +679,30 @@
   .tr__menu { max-height: 50dvh; }
   .tr__menu-item { height: 42px; font-size: 15px; }
 
-  .viewers__panel { left: 0; right: auto; width: min(300px, calc(100vw - 32px)); }
+  /* « N vues » : même feuille qui monte du bas que « Qui êtes-vous ? ». */
+  .viewers__backdrop { display: block; }
+  .viewers__panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    z-index: 61;
+    width: auto;
+    max-height: 82dvh;
+    padding: 8px 22px calc(14px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
+    overscroll-behavior: contain;
+    animation: who-up 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .viewers__panel .sheet-grip { display: block; }
+  .viewers__head { margin-bottom: 10px; font-size: 18px; }
+  .viewers__row { gap: 14px; padding: 12px 0; }
+  .viewers__row .ds-initials { width: 36px; height: 36px; }
+  .viewers__name { font-size: 16px; }
+  .viewers__meta, .viewers__time { font-size: 13px; }
+  .viewers__watch { width: 76px; }
+  .viewers__empty { font-size: 14px; }
 }
