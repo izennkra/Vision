@@ -111,8 +111,6 @@
   --rec-bar-w: 73px;             /* barre de contrôle flottante */
   --rec-bar-pad: 8px;
   --rec-handle-h: 22.5px;        /* zone de la poignée (6 points) */
-  --rec-bar-btn: 57px;           /* largeur de On / Off */
-  --rec-toggle-h: 38px;          /* hauteur de « On » et de « Off » */
   --rec-circle: 57px;            /* pause, recommencer */
   --rec-timer-w: 43px;
   --rec-timer-h: 25px;
@@ -183,7 +181,8 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .logo__eye.is-blinking { animation: none; } .logo__pupil { transition: none; } }
 
 /* Avatar rond */
-.ds-avatar { display: block; border-radius: var(--r-round); object-fit: cover; }
+.ds-avatar { display: block; flex: none; border-radius: var(--r-round); object-fit: cover; overflow: hidden; }
+.ds-avatar > img, .ds-avatar > .eye { display: block; width: 100%; height: 100%; border-radius: var(--r-round); object-fit: cover; }
 
 /* --- Dashboard ----------------------------------------------------------- */
 
@@ -360,16 +359,6 @@ button { cursor: pointer; }
   color: var(--c-ink);
 }
 
-/* Interrupteur On / Off empilé */
-.ds-toggle { display: flex; flex-direction: column; width: var(--rec-bar-btn); }
-.ds-toggle button {
-  height: var(--rec-toggle-h);
-  font-size: var(--fs-body);
-  background: var(--c-white);
-  color: var(--c-ink-soft);
-}
-.ds-toggle button.is-on { background: var(--c-ink-soft); color: var(--c-white); }
-
 /* Chrono « 0:00 » */
 .ds-timer {
   display: inline-flex;
@@ -396,7 +385,6 @@ button { cursor: pointer; }
   color: var(--c-ink-soft);
 }
 .ds-action--ghost { background: var(--c-surface-button); }
-.ds-action--dark { border-radius: var(--r-pill); background: var(--c-ink-soft); color: var(--c-on-dark); }
 .ds-action--green { border-radius: var(--r-pill); padding: 0 10px; background: var(--c-green); color: var(--c-white); }
 
 /* Lien orange souligné (prénom, client) */
@@ -465,13 +453,13 @@ button { cursor: pointer; }
 
 /* Fondu d'opacité au survol de tout ce qui est cliquable */
 .ds-btn-primary, .ds-tab, .ds-nav-item, .ds-folder, .ds-link-dot, .ds-option,
-.ds-round-primary, .ds-round-white, .ds-action, .ds-toggle button, .ds-hover,
+.ds-round-primary, .ds-round-white, .ds-action, .ds-hover,
 .ds-comment__time, .ds-comment__reply, .ds-accent-link {
   transition: opacity var(--t-fast) ease;
 }
 .ds-btn-primary:hover, .ds-tab:not(.is-active):hover, .ds-nav-item:not(.is-active):hover,
 .ds-folder:hover, .ds-link-dot:hover, .ds-option:hover, .ds-round-primary:hover,
-.ds-round-white:hover, .ds-action:hover, .ds-toggle button:hover, .ds-hover:hover,
+.ds-round-white:hover, .ds-action:hover, .ds-hover:hover,
 .ds-comment__time:hover, .ds-comment__reply:hover, a.ds-accent-link:hover, button.ds-accent-link:hover {
   opacity: var(--o-hover);
 }

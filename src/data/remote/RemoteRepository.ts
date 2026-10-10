@@ -9,7 +9,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { api, ApiError, mediaHref } from '../../lib/api'
 import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
 import { blobToBase64 } from '../../recorder/speech'
-import type { AppNotification, Client, Comment, ID, Page, PersonInput, Quality, Transcript, Video, View } from '../types'
+import type { AppNotification, Client, Comment, ID, OwnerProfile, Page, PersonInput, Quality, Transcript, Video, View } from '../types'
 
 interface CacheDB extends DBSchema {
   parts: { key: [ID, number]; value: { videoId: ID; index: number; data: Blob; savedAt: number }; indexes: { byVideo: ID } }
@@ -99,6 +99,15 @@ export class RemoteRepository implements Repository {
   }
   renameClient(id: ID, name: string) {
     return api<Client>(`clients/${id}`, { method: 'PATCH', json: { name } })
+  }
+  async reorderClients(ids: ID[]) {
+    await api('clients/order', { method: 'POST', json: { ids } })
+  }
+  getProfile() {
+    return api<OwnerProfile>('profile')
+  }
+  setProfile(avatar: string | null) {
+    return api<OwnerProfile>('profile', { method: 'PUT', json: { avatar } })
   }
   setClientPeople(id: ID, people: PersonInput[]) {
     return api<Client>(`clients/${id}`, { method: 'PATCH', json: { people } })

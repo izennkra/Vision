@@ -34,7 +34,7 @@ export function NotificationBell() {
         toast(fresh.length === 1 ? sentence(fresh[0]) : `${fresh.length} nouvelles notifications`)
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden)
           for (const n of fresh.slice(0, 3)) {
-            const desk = new Notification('Visions', { body: n.text ? `${sentence(n)} : ${n.text}` : sentence(n), tag: n.id, icon: '/logo-ik.svg' })
+            const desk = new Notification('Visions', { body: n.text ? `${sentence(n)} : ${n.text}` : sentence(n), tag: n.id, icon: '/apple-touch-icon.png' })
             desk.onclick = () => {
               window.focus()
               navigate(`/video/${n.videoId}`)

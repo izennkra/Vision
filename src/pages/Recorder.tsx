@@ -14,7 +14,7 @@ import { useToast } from '../components/Toast'
 import { clock } from '../lib/format'
 import * as sounds from '../recorder/sounds'
 import { cameraFilters, filterCss } from '../recorder/filters'
-import { RecordingSession, type Surface } from '../recorder/session'
+import { recordingSupported, RecordingSession, type Surface } from '../recorder/session'
 import { OFF, useDevices } from '../recorder/useDevices'
 import { pipSupported, usePip } from '../recorder/usePip'
 import './recorder.css'
@@ -111,6 +111,8 @@ export default function Recorder() {
 
   const go = async () => {
     if (state !== 'idle') return
+    // Safari et Firefox n'ont pas encore tout ce qu'il faut pour enregistrer sans à-coup.
+    if (!recordingSupported()) return setError('L’enregistrement fonctionne dans Google Chrome (ou Edge, Arc, Brave).')
     setError(null)
     sounds.unlock()
     // La fenêtre flottante doit s'ouvrir pendant le clic (exigence du navigateur).

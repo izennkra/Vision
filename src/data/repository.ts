@@ -4,7 +4,7 @@
 // Étape 2 : implémentation Cloudflare (R2 pour les vidéos, base de données pour le reste)
 // qui respecte la même interface — les écrans ne changent pas.
 
-import type { Access, AppNotification, Client, Comment, ID, Page, PersonInput, Quality, Transcript, Video, View } from './types'
+import type { Access, AppNotification, Client, Comment, ID, OwnerProfile, Page, PersonInput, Quality, Transcript, Video, View } from './types'
 
 export interface VideoQuery {
   /** Dossier : inclut les vidéos de ses sous-dossiers. */
@@ -32,6 +32,11 @@ export interface Repository {
   listClients(): Promise<Client[]>
   createClient(name: string, parentId?: ID | null): Promise<Client>
   renameClient(id: ID, name: string): Promise<Client>
+  /** Nouvel ordre des dossiers (barre latérale). */
+  reorderClients(ids: ID[]): Promise<void>
+  /** Profil du propriétaire (photo). */
+  getProfile(): Promise<OwnerProfile>
+  setProfile(avatar: string | null): Promise<OwnerProfile>
   /** Équipe d'un dossier client. */
   setClientPeople(id: ID, people: PersonInput[]): Promise<Client>
   /** Photo de profil importée (carrée, déjà réduite) : renvoie son adresse. */

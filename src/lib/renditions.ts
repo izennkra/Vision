@@ -3,11 +3,8 @@
 // réencodé plus petit par le Mac (encodeur matériel) et envoyé en morceaux comme l'original.
 // Rien ne se prépare pendant un enregistrement : la priorité reste à la fluidité de la capture.
 import { useEffect, useState } from 'react'
-import {
-  ALL_FORMATS, BlobSource, Conversion, getFirstEncodableVideoCodec, Input, Mp4OutputFormat, Output, StreamTarget, UrlSource,
-} from 'mediabunny'
+import type { Conversion } from 'mediabunny'
 import { repo, type ID, type Quality } from '../data'
-import { PartWriter } from '../recorder/parts'
 
 export const TARGETS = [
   { height: 720, bitrate: 1_200_000 },
@@ -38,6 +35,9 @@ export async function prepareQualities(videoId: ID, originalUrl: string) {
     await conversion?.cancel().catch(() => {})
   })
   try {
+    // Le moteur vidéo n'est chargé qu'ici : les pages client restent légères.
+    const [{ ALL_FORMATS, BlobSource, Conversion, getFirstEncodableVideoCodec, Input, Mp4OutputFormat, Output, StreamTarget, UrlSource }, { PartWriter }] =
+      await Promise.all([import('mediabunny'), import('../recorder/parts')])
     const local = await repo.getLocalFile(videoId)
     const open = () => new Input({ source: local ? new BlobSource(local) : new UrlSource(originalUrl), formats: ALL_FORMATS })
     const probe = open()

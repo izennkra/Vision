@@ -17,7 +17,7 @@ const toInput = (r: Row): PersonInput => ({ id: r.id, name: r.name.trim(), email
 let nextKey = 0
 
 /** Photo importée : recadrée au carré et réduite à 256 px (légère, nette). */
-async function squareImage(file: File) {
+export async function squareImage(file: File) {
   const bitmap = await createImageBitmap(file)
   const side = Math.min(bitmap.width, bitmap.height)
   const canvas = Object.assign(document.createElement('canvas'), { width: 256, height: 256 })

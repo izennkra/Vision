@@ -1,11 +1,13 @@
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { cloud, hasSession } from './lib/api'
 import Dashboard from './pages/Dashboard'
-import DesignSystem from './pages/DesignSystem'
 import Login from './pages/Login'
-import Recorder from './pages/Recorder'
 import VideoPage from './pages/VideoPage'
+
+// Chargés à la demande : l'enregistreur (moteur vidéo) et la planche du design system.
+const Recorder = lazy(() => import('./pages/Recorder'))
+const DesignSystem = lazy(() => import('./pages/DesignSystem'))
 
 /** En ligne, les pages du propriétaire demandent la connexion. */
 function Owner({ children }: { children: ReactNode }) {
@@ -16,6 +18,7 @@ function Owner({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
+    <Suspense fallback={null}>
     <Routes>
       <Route path="/" element={<Owner><Dashboard /></Owner>} />
       <Route path="/record" element={<Owner><Recorder /></Owner>} />
@@ -25,5 +28,6 @@ export default function App() {
       <Route path="/design-system" element={<DesignSystem />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }

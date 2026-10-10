@@ -119,3 +119,9 @@ CREATE TABLE IF NOT EXISTS rendition_parts (
   size INTEGER NOT NULL,
   PRIMARY KEY (video_id, quality, idx)
 );
+
+-- Réglages du propriétaire (photo de profil…).
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

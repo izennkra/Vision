@@ -4,7 +4,7 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
-import type { AppNotification, Client, Comment, ID, Page, PersonInput, Transcript, Video, VideoChunk, View } from '../types'
+import type { AppNotification, Client, Comment, ID, OwnerProfile, Page, PersonInput, Transcript, Video, VideoChunk, View } from '../types'
 import { owner } from '../../config'
 import { demoTranscript, seed } from './seed'
 import { audienceOf, normalizePeople, publicPerson } from '../../lib/people'
@@ -116,11 +116,45 @@ export class LocalRepository implements Repository {
   // --- Clients --------------------------------------------------------------
   async listClients() {
     const clients = await (await this.dbp).getAll('clients')
-    return clients.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    const rank = (c: Client) => c.position ?? Number.MAX_SAFE_INTEGER
+    return clients.sort((a, b) => rank(a) - rank(b) || a.createdAt.localeCompare(b.createdAt))
+  }
+
+  async reorderClients(ids: ID[]) {
+    const db = await this.dbp
+    const tx = db.transaction('clients', 'readwrite')
+    for (const [i, id] of ids.entries()) {
+      const c = await tx.store.get(id)
+      if (c) await tx.store.put({ ...c, position: i })
+    }
+    await tx.done
+  }
+
+  /** Version locale : la photo du propriétaire est gardée dans ce navigateur. */
+  async getProfile(): Promise<OwnerProfile> {
+    let avatar: string | null = null
+    try {
+      avatar = localStorage.getItem('visions:owner-avatar')
+    } catch {
+      /* navigation privée */
+    }
+    return { name: owner.fullName, avatar }
+  }
+
+  async setProfile(avatar: string | null): Promise<OwnerProfile> {
+    try {
+      if (avatar) localStorage.setItem('visions:owner-avatar', avatar)
+      else localStorage.removeItem('visions:owner-avatar')
+    } catch {
+      /* navigation privée */
+    }
+    return { name: owner.fullName, avatar }
   }
 
   async createClient(name: string, parentId: ID | null = null) {
-    const client: Client = { id: newId(), name, parentId, createdAt: now() }
+    const all = await (await this.dbp).getAll('clients')
+    const position = Math.max(0, ...all.map((c) => c.position ?? 0)) + 1
+    const client: Client = { id: newId(), name, parentId, createdAt: now(), position }
     await (await this.dbp).put('clients', client)
     return client
   }

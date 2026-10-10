@@ -17,6 +17,14 @@ export interface Client {
   createdAt: ISODate
   /** Équipe du client : les personnes qui regardent et commentent ses vidéos (et celles de ses sous-dossiers). */
   people?: Person[]
+  /** Ordre dans la barre latérale (glisser-déposer). */
+  position?: number | null
+}
+
+/** Profil du propriétaire : photo importée, œil de couleur (« eye:#007500 ») ou null (photo d'origine). */
+export interface OwnerProfile {
+  name: string
+  avatar: string | null
 }
 
 /** Personne prévue pour regarder et commenter (profil choisi dans les commentaires). */

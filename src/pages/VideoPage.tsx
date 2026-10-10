@@ -10,6 +10,7 @@ import { prepareQualities, TARGETS, useQualityJob } from '../lib/renditions'
 import type { SharedResult } from '../data/repository'
 import { ANONYMOUS, Comments, initialsOf } from '../components/Comments'
 import { PeopleContext } from '../components/Initials'
+import { OwnerAvatarImage } from '../components/OwnerAvatar'
 import { audienceOf } from '../lib/people'
 import { InlineEdit } from '../components/InlineEdit'
 import { Logo } from '../components/Logo'
@@ -296,7 +297,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
               <ViewsChip video={video} />
             </div>
             <div className="vp__author">
-              <img className="ds-avatar" src={owner.avatarUrl} alt="" />
+              <span className="ds-avatar vp__owner-avatar"><OwnerAvatarImage /></span>
               <span>Publié par {owner.fullName}</span>
               <span className="vp__dash">-</span>
               <span>{timeAgo(video.createdAt)}</span>

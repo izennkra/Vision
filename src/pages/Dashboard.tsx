@@ -17,10 +17,13 @@ import { useToast } from '../components/Toast'
 import { NotificationBell } from '../components/NotificationBell'
 import { TeamPanel } from '../components/TeamPanel'
 import { Initials } from '../components/Initials'
+import { OwnerAvatarButton } from '../components/OwnerAvatar'
 import './dashboard.css'
 
 const PAGE = 24
 const DRAG_TYPE = 'application/x-visions-video'
+/** Glisser un dossier pour changer son ordre (parmi les dossiers du même niveau). */
+const FOLDER_TYPE = 'application/x-visions-folder'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -38,9 +41,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [reload, setReload] = useState(0)
   const [teamOf, setTeamOf] = useState<ID | null>(null)
+  const [draggedFolder, setDraggedFolder] = useState<ID | null>(null)
+  const [folderDrop, setFolderDrop] = useState<{ id: ID; after: boolean } | null>(null)
   const [sentinel, atEnd] = useInView<HTMLDivElement>('600px')
 
   const refreshClients = useCallback(() => repo.listClients().then(setClients), [])
+  // L'enregistreur est chargé à part : on le prépare en avance pour que « Nouvelle vidéo » s'ouvre aussitôt.
+  useEffect(() => {
+    const t = window.setTimeout(() => void import('./Recorder'), 1200)
+    return () => window.clearTimeout(t)
+  }, [])
   useEffect(() => {
     refreshClients()
   }, [refreshClients])
@@ -126,6 +136,40 @@ export default function Dashboard() {
     setTotal((t) => t - 1)
   }
 
+  // Réordonner les dossiers : on dépose au-dessus ou en dessous d'un dossier du même niveau.
+  const folderDragProps = (c: Client) => ({
+    draggable: renamingClient !== c.id,
+    onDragStart: (e: DragEvent) => {
+      e.dataTransfer.setData(FOLDER_TYPE, c.id)
+      e.dataTransfer.effectAllowed = 'move'
+      setDraggedFolder(c.id)
+    },
+    onDragEnd: () => {
+      setDraggedFolder(null)
+      setFolderDrop(null)
+    },
+  })
+  const folderDropOver = (e: DragEvent, c: Client) => {
+    const dragged = clients.find((x) => x.id === draggedFolder)
+    if (!dragged || dragged.id === c.id || (dragged.parentId ?? null) !== (c.parentId ?? null)) return false
+    e.preventDefault()
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setFolderDrop({ id: c.id, after: e.clientY > r.top + r.height / 2 })
+    return true
+  }
+  const dropFolder = async () => {
+    const target = folderDrop
+    const dragged = draggedFolder
+    setFolderDrop(null)
+    setDraggedFolder(null)
+    if (!target || !dragged) return
+    const rest = clients.filter((x) => x.id !== dragged)
+    const at = rest.findIndex((x) => x.id === target.id) + (target.after ? 1 : 0)
+    const next = [...rest.slice(0, at), clients.find((x) => x.id === dragged)!, ...rest.slice(at)]
+    setClients(next.map((x, i) => ({ ...x, position: i })))
+    await repo.reorderClients(next.map((x) => x.id))
+  }
+
   // Glisser une carte sur un dossier pour l'y ranger.
   const dropProps = (key: string, target: ID | null) => ({
     onDragOver: (e: DragEvent) => {
@@ -146,7 +190,7 @@ export default function Dashboard() {
       <div className="dash__logo"><Logo /></div>
       <div className="dash__top-right">
         <NotificationBell />
-        <img className="ds-avatar dash__avatar" src={owner.avatarUrl} alt={owner.fullName} />
+        <OwnerAvatarButton />
       </div>
 
       <aside className="dash__side">
@@ -182,11 +226,18 @@ export default function Dashboard() {
                 tabIndex={0}
                 title={depth ? 'Client de ' + clients.find((x) => x.id === c.parentId)?.name : 'Clic droit : ajouter un client, renommer, supprimer'}
                 style={depth ? { paddingLeft: 9 + depth * 16 } : undefined}
-                className={`ds-nav-item${depth ? ' ds-nav-item--sub' : ''}${clientId === c.id ? ' is-active' : ''}${dropTarget === c.id ? ' is-drop-target' : ''}`}
+                className={`ds-nav-item${depth ? ' ds-nav-item--sub' : ''}${clientId === c.id ? ' is-active' : ''}${dropTarget === c.id ? ' is-drop-target' : ''}${draggedFolder === c.id ? ' is-dragging' : ''}${folderDrop?.id === c.id ? (folderDrop.after ? ' is-drop-after' : ' is-drop-before') : ''}`}
                 onClick={() => renamingClient !== c.id && selectClient(c.id)}
                 onDoubleClick={() => setRenamingClient(c.id)}
                 onContextMenu={(e) => clientMenu(e, c)}
+                {...folderDragProps(c)}
                 {...dropProps(c.id, c.id)}
+                onDragOver={(e) => folderDropOver(e, c) || dropProps(c.id, c.id).onDragOver(e)}
+                onDrop={(e) => (draggedFolder ? void dropFolder() : dropProps(c.id, c.id).onDrop(e))}
+                onDragLeave={() => {
+                  setFolderDrop((d) => (d?.id === c.id ? null : d))
+                  setDropTarget((k) => (k === c.id ? null : k))
+                }}
               >
                 <IconFolder size={14} className="ds-nav-item__folder" />
                 <InlineEdit

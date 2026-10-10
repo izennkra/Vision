@@ -114,3 +114,29 @@
 .dash__team-faces .ds-initials + .ds-initials { margin-left: -5px; }
 .dash__team:not(:has(.dash__team-faces)) { padding-left: 10px; }
 .dash__archived { background: var(--c-ink-soft); color: var(--c-white); }
+
+/* Ma photo de profil (en haut à droite) : clic pour la changer */
+.owner { position: relative; }
+.owner__button { padding: 0; transition: opacity var(--t-fast) ease, transform var(--t-fast) ease; }
+.owner__button:hover { opacity: var(--o-hover); }
+.owner__picker { left: auto; right: 0; top: calc(100% + 10px); }
+
+/* Réordonner les dossiers : trait vert à l'endroit où le dossier va se placer */
+.ds-nav-item.is-drop-before { box-shadow: inset 0 2px 0 var(--c-green); }
+.ds-nav-item.is-drop-after { box-shadow: inset 0 -2px 0 var(--c-green); }
+
+/* Téléphone et petite fenêtre : la barre latérale passe au-dessus, les cartes sur une colonne. */
+@media (max-width: 760px) {
+  .dash { padding: 16px 16px 32px; }
+  .dash__logo { position: static; }
+  .dash__logo .ds-logo { width: 64px; height: 52px; }
+  .dash__top-right { top: 16px; right: 16px; }
+  .dash__top-right .dash__avatar { width: 38px; height: 38px; }
+  .dash__side { position: static; width: auto; margin-top: 18px; }
+  .dash__panel { height: auto; max-height: none; }
+  .dash__main { margin: 24px 0 0; padding-top: 0; }
+  .dash__bar { flex-wrap: wrap; gap: 12px; }
+  .dash__tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .dash__grid { grid-template-columns: 1fr; }
+  .owner__picker { right: -4px; }
+}

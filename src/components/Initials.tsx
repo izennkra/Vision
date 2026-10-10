@@ -9,6 +9,7 @@ import { owner } from '../config'
 import type { Person } from '../data/types'
 import { mediaHref } from '../lib/api'
 import { colorFor } from '../lib/people'
+import { OwnerAvatarImage } from './OwnerAvatar'
 
 export const initialsOf = (name: string) =>
   name
@@ -55,12 +56,17 @@ export function Initials({ name, person, className = '' }: AvatarProps) {
   const trimmed = name?.trim() ?? ''
   const anonymous = !trimmed || trimmed === '?' || trimmed.toLowerCase() === 'anonyme'
   const known = person ?? (anonymous ? null : people.find((p) => p.name === trimmed))
-  const photo = trimmed === owner.fullName ? owner.avatarUrl : known?.avatar ? mediaHref(known.avatar) : null
+  const photo = known?.avatar ? mediaHref(known.avatar) : null
   return (
     <span className={`ds-initials ds-avatar-eye ${className}`} title={trimmed || undefined} aria-hidden>
-      {photo ? <img src={photo} alt="" /> : <Eye color={anonymous ? ANON_COLOR : colorFor(trimmed, known?.color)} />}
+      {trimmed === owner.fullName ? (
+        <OwnerAvatarImage />
+      ) : photo ? (
+        <img src={photo} alt="" />
+      ) : (
+        <Eye color={anonymous ? ANON_COLOR : colorFor(trimmed, known?.color)} />
+      )}
     </span>
   )
 }
 
-export const Avatar = Initials

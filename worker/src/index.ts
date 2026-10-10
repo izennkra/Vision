@@ -38,6 +38,7 @@ const UPGRADES = [
   "ALTER TABLE clients ADD COLUMN people TEXT NOT NULL DEFAULT '[]'",
   'ALTER TABLE transcript_chunks ADD COLUMN voices TEXT',
   'ALTER TABLE videos ADD COLUMN archived INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE clients ADD COLUMN position REAL',
 ]
 
 /** Crée les tables au premier démarrage (une fois par instance du serveur). */
@@ -404,6 +405,12 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
   }
   if (a === 'session' && method === 'GET') return json({ owner: await isOwner(req, env) })
 
+  // Profil du propriétaire (photo affichée sur le dashboard, les pages vidéo et ses commentaires) : visible par tous.
+  if (a === 'profile' && method === 'GET') {
+    const r = await env.DB.prepare("SELECT value FROM settings WHERE key = 'owner_avatar'").first<Row>()
+    return json({ name: ownerName, avatar: (r?.value as string) ?? null })
+  }
+
   // --- Pages client (publiques, via le lien de partage) ---------------------------------------
   if (a === 'share' && b) {
     const video = await getSharedRow(env, b)
@@ -488,15 +495,35 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
     return json({ url: `/media/avatar/${b}?v=${Date.now()}` })
   }
 
+  // Photo du propriétaire : une photo importée (/media/avatar/…), un œil de couleur (eye:#007500) ou null (photo d'origine).
+  if (a === 'profile' && method === 'PUT') {
+    const { avatar } = await body<{ avatar: string | null }>(req)
+    const ok = avatar === null || /^\/media\/avatar\/[\w-]+(\?v=\d+)?$/.test(avatar) || /^eye:#[0-9a-f]{6}$/i.test(avatar)
+    if (!ok) throw new HttpError(400, 'Photo invalide')
+    if (avatar === null) await env.DB.prepare("DELETE FROM settings WHERE key = 'owner_avatar'").run()
+    else await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('owner_avatar', ?)").bind(avatar).run()
+    return json({ name: ownerName, avatar })
+  }
+
   if (a === 'clients') {
+    // Ordre des dossiers choisi par glisser-déposer dans la barre latérale.
+    if (b === 'order' && method === 'POST') {
+      const { ids } = await body<{ ids: string[] }>(req)
+      if (!Array.isArray(ids) || ids.length > 500) throw new HttpError(400, 'Ordre invalide')
+      if (ids.length) await env.DB.batch(ids.map((id, i) => env.DB.prepare('UPDATE clients SET position = ? WHERE id = ?').bind(i, String(id))))
+      return json({ ok: true })
+    }
     if (!b && method === 'GET') {
-      const { results } = await env.DB.prepare('SELECT * FROM clients ORDER BY created_at').all<Row>()
+      const { results } = await env.DB.prepare('SELECT * FROM clients ORDER BY position IS NULL, position, created_at').all<Row>()
       return json(results.map((r) => toClient(r)))
     }
     if (!b && method === 'POST') {
       const { name, parentId } = await body<{ name: string; parentId?: string | null }>(req)
       const r = { id: uid(), name: String(name || 'Nouveau dossier').slice(0, 80), parent_id: parentId ?? null, created_at: now() }
-      await env.DB.prepare('INSERT INTO clients (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)').bind(r.id, r.name, r.parent_id, r.created_at).run()
+      // Nouveau dossier : en dernier.
+      await env.DB.prepare('INSERT INTO clients (id, name, parent_id, created_at, position) VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM clients))')
+        .bind(r.id, r.name, r.parent_id, r.created_at)
+        .run()
       return json(toClient({ ...r, people: '[]' }), 201)
     }
     if (b && method === 'PATCH') {

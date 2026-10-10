@@ -17,4 +17,5 @@ export const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS transcript_translations ( video_id TEXT NOT NULL, idx INTEGER NOT NULL, lang TEXT NOT NULL, cues TEXT NOT NULL, PRIMARY KEY (video_id, idx, lang) )",
   "CREATE TABLE IF NOT EXISTS renditions ( video_id TEXT NOT NULL, quality INTEGER NOT NULL, object_key TEXT NOT NULL, upload_id TEXT, status TEXT NOT NULL, size INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (video_id, quality) )",
   "CREATE TABLE IF NOT EXISTS rendition_parts ( video_id TEXT NOT NULL, quality INTEGER NOT NULL, idx INTEGER NOT NULL, etag TEXT NOT NULL, size INTEGER NOT NULL, PRIMARY KEY (video_id, quality, idx) )",
+  "CREATE TABLE IF NOT EXISTS settings ( key TEXT PRIMARY KEY, value TEXT NOT NULL )",
 ]

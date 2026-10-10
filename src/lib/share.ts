@@ -36,16 +36,6 @@ export function inviteMailto(video: Video, person: Person) {
   return `mailto:${encodeURIComponent(person.email ?? '')}?${q}`
 }
 
-/**
- * Copie le lien de la page client. Partager une vidéo encore en brouillon la publie :
- * sinon le client tomberait sur une page indisponible.
- */
-export async function shareVideo(video: Video) {
-  await navigator.clipboard.writeText(shareUrl(video.shareToken))
-  if (video.status !== 'published') return repo.updateVideo(video.id, { status: 'published' })
-  return video
-}
-
 /** Retour visuel bref après une copie (l'icône lien devient une coche). */
 export function useCopied(delay = 1400) {
   const [copied, setCopied] = useState(false)

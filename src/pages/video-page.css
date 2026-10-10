@@ -93,7 +93,7 @@
   font-size: var(--fs-ui);
   color: var(--c-muted-1);
 }
-.vp__author img { width: var(--video-author-avatar); height: var(--video-author-avatar); margin-right: 7px; }
+.vp__owner-avatar { width: var(--video-author-avatar); height: var(--video-author-avatar); margin-right: 7px; }
 .vp__dash { margin: 0 8px; }
 
 .vp__player { padding: var(--video-pad); border-bottom: 1px solid var(--c-surface-strong); }

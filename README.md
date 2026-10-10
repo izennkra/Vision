@@ -33,6 +33,8 @@ Version en ligne en local (serveur Cloudflare simulé) : `npm run dev:cloud`, pu
 ## Fonctionnement
 
 - **Dashboard** : clic sur une carte → page personnelle ; icône lien → copie du lien (grisée tant que la vidéo n'est pas publiée avec ses personnes prévues : le clic ouvre alors le panneau « Partager ») ; clic droit sur une carte → ouvrir, copier le lien, renommer, déplacer vers un dossier, télécharger, supprimer ; glisser une carte sur un dossier pour l'y ranger.
+- **Ordre des dossiers** : glisser un dossier au-dessus ou en dessous d'un autre du même niveau (un trait vert montre où il va) ; les onglets suivent le même ordre.
+- **Ma photo de profil** : clic sur la photo en haut à droite du dashboard → un œil de couleur, une photo importée, ou la photo d'origine ; elle apparaît aussi sur les pages vidéo et dans les commentaires.
 - **Dossiers clients** : « + » au survol de « Clients » (ou clic droit) pour en créer un ; double-clic ou clic droit pour renommer ; clic droit → supprimer (les vidéos sont conservées).
 - **Enregistrement** : GO ouvre le sélecteur du navigateur (écran entier, fenêtre ou onglet). La bulle caméra passe dans une fenêtre flottante (Picture-in-Picture de Chrome) qui reste au premier plan au-dessus de toutes les applications ; on peut la placer en bas à gauche de l'écran, Chrome retient sa position. Pause et arrêt sont aussi disponibles au survol de cette fenêtre.
 - **Bulle dans la vidéo** : toujours dessinée en bas à gauche de la vidéo finale. En écran entier, la fenêtre flottante se ferme au départ pour ne pas être filmée en double.
