@@ -308,16 +308,18 @@ async function deleteVideo(env: Env, id: string) {
   const v = await env.DB.prepare('SELECT object_key, upload_id FROM videos WHERE id = ?').bind(id).first<Row>()
   if (!v) return
   if (v.upload_id) await env.VIDEOS.resumeMultipartUpload(v.object_key as string, v.upload_id as string).abort().catch(() => {})
+  // Fichiers d'abord (vidéo, vignette, versions allégées, son de la transcription), la fiche de la vidéo en dernier :
+  // si quelque chose échoue en route, la vidéo reste visible et on peut relancer la suppression.
   await env.VIDEOS.delete([v.object_key as string, `thumbs/${id}.jpg`])
+  await deleteRenditions(env, id)
+  await deleteTranscript(env, id)
   await env.DB.batch([
-    env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(id),
     env.DB.prepare('DELETE FROM parts WHERE video_id = ?').bind(id),
     env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(id),
     env.DB.prepare('DELETE FROM views WHERE video_id = ?').bind(id),
     env.DB.prepare('DELETE FROM notifications WHERE video_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(id),
   ])
-  await deleteTranscript(env, id)
-  await deleteRenditions(env, id)
 }
 
 // --- Accès aux pages client ------------------------------------------------------------------
