@@ -23,13 +23,13 @@
 @keyframes sp-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
 
 .sp__head { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 4px; }
-.sp__title { margin: 0; font-size: var(--fs-title); font-weight: 400; color: var(--c-ink-soft); }
+.sp__title { margin: 0; font-size: var(--fs-title); font-weight: 400; line-height: 22px; color: var(--c-ink-soft); }
 .sp__close { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin-right: -8px; border-radius: var(--r-round); color: var(--c-ink-soft); }
 
 .sp__section { padding: 16px 22px; }
 .sp__section + .sp__section { border-top: 1px solid var(--c-surface-button); }
-.sp__label { font-size: var(--fs-body); color: var(--c-ink); }
-.sp__hint { margin: 6px 0 0; font-size: var(--fs-meta); line-height: 1.4; color: var(--c-muted-1); }
+.sp__label { font-size: var(--fs-body); line-height: 18px; color: var(--c-ink); }
+.sp__hint { margin: 6px 0 0; font-size: var(--fs-meta); line-height: 17px; color: var(--c-muted-1); }
 .sp__hint--tight { margin-top: 2px; }
 .sp__hint--center { text-align: center; margin-top: 10px; }
 
@@ -128,7 +128,7 @@
 
 /* Groupes (équipe du dossier, de l'agence, personnes de la vidéo) */
 .sp__group + .sp__group { margin-top: 14px; }
-.sp__group-title { display: flex; align-items: baseline; gap: 8px; margin-top: 14px; font-size: var(--fs-meta); color: var(--c-ink-soft); }
+.sp__group-title { display: flex; align-items: baseline; gap: 8px; margin-top: 14px; font-size: var(--fs-meta); line-height: 16px; color: var(--c-ink-soft); }
 .sp__group-title span { color: var(--c-muted-2); }
 .sp__hint--first { margin-top: 0; }
 .sp__inherited { margin-top: 18px; }

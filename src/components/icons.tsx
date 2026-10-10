@@ -75,7 +75,7 @@ export function IconGrip() {
 /** Pause : deux barres pleines (la pause Phosphor est en contour, différente de la capture). */
 export function IconPause({ color = 'currentColor', size = 11 }: P) {
   return (
-    <svg width={(size * 8) / 11} height={size} viewBox="0 0 8 11" fill={color}>
+    <svg width={2 * Math.round((size * 4) / 11)} height={size} viewBox="0 0 8 11" preserveAspectRatio="none" fill={color}>
       <rect x="0" y="0" width="2" height="11" />
       <rect x="6" y="0" width="2" height="11" />
     </svg>

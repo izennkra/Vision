@@ -77,7 +77,7 @@
   align-items: center;
   justify-content: center;
   height: 30px;
-  padding: 12px 11px 0;
+  padding: 0 11px; /* le « + » est centré sur le libellé « Clients » */
   color: var(--c-ink);
   opacity: 0;
 }

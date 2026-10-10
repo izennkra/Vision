@@ -380,7 +380,7 @@ function ControlBar({ state, elapsed, onStop, onPause, onRestart }: BarProps) {
       </button>
       <span className="ds-timer">{clock(elapsed)}</span>
       <button className="ds-round-white" onClick={onPause} disabled={!recording} aria-label={state === 'paused' ? 'Reprendre' : 'Pause'} title={state === 'paused' ? 'Reprendre' : 'Pause'}>
-        {state === 'paused' ? <IconPlay size={14} weight="fill" /> : <IconPause />}
+        {state === 'paused' ? <IconPlay size={14} weight="fill" /> : <IconPause size={12} />}
       </button>
       <button className="ds-round-white" onClick={onRestart} disabled={!recording} aria-label="Recommencer" title="Recommencer depuis le début">
         <IconRestart size={19} weight="regular" />
@@ -478,7 +478,7 @@ function PipBubble({ stream, filter, state, count, elapsed, onPause, onStop }: P
         }}
       >
         <button style={btn} onClick={onPause} title={state === 'paused' ? 'Reprendre' : 'Pause'}>
-          {state === 'paused' ? <IconPlay size={12} weight="fill" /> : <IconPause />}
+          {state === 'paused' ? <IconPlay size={12} weight="fill" /> : <IconPause size={12} />}
         </button>
         <span style={{ ...btn, width: 'auto', padding: '0 10px', height: 24, borderRadius: 999, fontSize: 11, fontWeight: 600, color: '#323232', cursor: 'default' }}>
           {clock(elapsed)}

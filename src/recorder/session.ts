@@ -492,6 +492,30 @@ export class RecordingSession {
   // --- Composition et encodage ----------------------------------------------------------------
 
   /** Dessine l'écran (ajusté à la taille de la vidéo) et la bulle caméra en bas à gauche. */
+  /**
+   * Fenêtre enregistrée sur Mac : ses coins arrondis arrivent transparents (ils deviendraient noirs dans la vidéo).
+   * On mesure l'arrondi (au plus toutes les 2 s) en lisant la diagonale du coin haut gauche.
+   */
+  private cornerRadius(screen: VideoFrame) {
+    const now = performance.now()
+    if (now - this.corner.at < 2000 && this.corner.w === screen.displayWidth && this.corner.h === screen.displayHeight) return this.corner.r
+    const size = 96
+    const g = this.probe
+    g.clearRect(0, 0, size, size)
+    g.drawImage(screen, 0, 0, size, size, 0, 0, size, size)
+    const data = g.getImageData(0, 0, size, size).data
+    // Coin vide : transparent, ou noir pur selon la version de macOS.
+    const empty = (i: number) => data[i + 3] < 250 || (data[i] < 6 && data[i + 1] < 6 && data[i + 2] < 6)
+    let r = 0
+    while (r < size && empty((r * size + r) * 4)) r++
+    // Au-delà de ~40 px sur la diagonale, ce n'est pas un coin de fenêtre mais du contenu sombre : on n'y touche pas.
+    // Rayon du coin ≈ distance sur la diagonale / (1 − 1/√2).
+    this.corner = { at: now, w: screen.displayWidth, h: screen.displayHeight, r: r && r <= 40 ? Math.ceil(r / 0.29) + 1 : 0 }
+    return this.corner.r
+  }
+  private corner = { at: 0, w: 0, h: 0, r: 0 }
+  private probe = Object.assign(document.createElement('canvas'), { width: 96, height: 96 }).getContext('2d', { willReadFrequently: true })!
+
   private draw() {
     const screen = this.screen
     if (!screen || !this.canvas.width) return
@@ -501,11 +525,26 @@ export class RecordingSession {
     const fit = Math.min(w / screen.displayWidth, h / screen.displayHeight)
     const dw = Math.round(screen.displayWidth * fit)
     const dh = Math.round(screen.displayHeight * fit)
+    const x = Math.round((w - dw) / 2)
+    const y = Math.round((h - dh) / 2)
     if (dw < w - 1 || dh < h - 1) {
       ctx.fillStyle = '#000'
       ctx.fillRect(0, 0, w, h)
-      ctx.drawImage(screen, Math.round((w - dw) / 2), Math.round((h - dh) / 2), dw, dh)
-    } else ctx.drawImage(screen, 0, 0, w, h)
+    }
+    ctx.drawImage(screen, x, y, dw, dh)
+    // Coins arrondis de la fenêtre : on les remplit avec la même image très légèrement agrandie (les couleurs
+    // du bord), seulement dans les quatre coins. La vidéo garde des angles droits ; seul le lecteur est arrondi.
+    const r = this.cornerRadius(screen)
+    if (r) {
+      const s = 1 + (2.4 * r) / Math.min(screen.displayWidth, screen.displayHeight)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x, y, dw, dh)
+      ctx.roundRect(x, y, dw, dh, r * fit)
+      ctx.clip('evenodd')
+      ctx.drawImage(screen, x - (dw * (s - 1)) / 2, y - (dh * (s - 1)) / 2, dw * s, dh * s)
+      ctx.restore()
+    }
     const cam = this.cam
     if (cam) {
       const d = Math.round(Math.min(h * BUBBLE_RATIO, w * 0.35))

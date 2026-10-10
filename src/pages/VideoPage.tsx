@@ -283,7 +283,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
             </div>
           ) : (
             <div className="vp__actions is-entering">
-              <button className="ds-action ds-action--green" onClick={isOwner ? () => setPanel(true) : clientShare}>Partager</button>
+              {/* Ordre inversé à l’écran : l’icône lien, collée au bord droit, tombe sur un pixel entier (nette). */}
               <div className={`vp__copy${copied ? ' is-copied' : ''}`}>
                 <button
                   className={`ds-link-dot vp__link${ready ? '' : ' is-muted'}`}
@@ -296,6 +296,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
                   {copied ? <><IconCheck size={10} />Lien copié</> : ready ? 'Copier le lien' : 'Ajoutez les personnes'}
                 </span>
               </div>
+              <button className="ds-action ds-action--green" onClick={isOwner ? () => setPanel(true) : clientShare}>Partager</button>
             </div>
           )}
         </header>

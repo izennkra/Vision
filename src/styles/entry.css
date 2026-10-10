@@ -47,7 +47,7 @@
 .entry--code .entry__card { max-width: 383px; padding: 64px 28px 64px; }
 .entry__lock { display: flex; align-items: center; justify-content: center; width: 61px; height: 61px; border-radius: var(--r-round); background: var(--c-surface); color: var(--c-ink-soft); }
 .entry--code .entry__title { margin-top: 26px; }
-.entry__text { max-width: 290px; margin: 10px 0 0; font-size: var(--fs-body); line-height: 1.25; color: var(--c-muted-5); }
+.entry__text { max-width: 290px; margin: 10px 0 0; font-size: var(--fs-body); line-height: 18px; color: var(--c-muted-5); }
 .entry--code .entry__go { width: 108px; height: 108px; margin-top: 27px; }
 
 .code { position: relative; display: flex; gap: 6.5px; margin-top: 32px; cursor: text; }

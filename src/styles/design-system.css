@@ -108,11 +108,11 @@
   --dash-stats-h: 36px;
 
   /* Enregistreur */
-  --rec-bar-w: 73px;             /* barre de contrôle flottante */
+  --rec-bar-w: 72px;             /* barre de contrôle flottante (largeurs paires : icônes centrées au pixel) */
   --rec-bar-pad: 8px;
-  --rec-handle-h: 22.5px;        /* zone de la poignée (6 points) */
-  --rec-circle: 57px;            /* pause, recommencer */
-  --rec-timer-w: 43px;
+  --rec-handle-h: 22px;          /* zone de la poignée (6 points) */
+  --rec-circle: 56px;            /* arrêt, pause, recommencer */
+  --rec-timer-w: 44px;
   --rec-timer-h: 25px;
   --rec-gap: 15px;
   --rec-panel-w: 221px;          /* panneau des options */
@@ -300,7 +300,7 @@ button { cursor: pointer; }
   background: var(--c-ink-soft);
   color: var(--c-surface-strong);
 }
-.ds-card__thumb .ds-link-dot { position: absolute; top: 11px; right: 9px; }
+.ds-card__thumb .ds-link-dot { position: absolute; top: 11px; left: round(down, calc(100% - 29px), 1px); } /* pixel entier : icône nette */
 
 /* Pastille de statistiques sous la carte (vues, durée, date) */
 .ds-stats {
@@ -571,7 +571,7 @@ button { cursor: pointer; }
 }
 .bell__head { display: flex; align-items: center; justify-content: space-between; padding: 0 8px 8px; font-size: var(--fs-ui); color: var(--c-ink); }
 .bell__all { font-size: var(--fs-small); color: var(--c-muted-1); }
-.bell__empty { margin: 6px 8px 10px; font-size: var(--fs-meta); line-height: 1.45; color: var(--c-muted-2); }
+.bell__empty { margin: 6px 8px 10px; font-size: var(--fs-meta); line-height: 17px; color: var(--c-muted-2); }
 .bell__list { list-style: none; margin: 0; padding: 0; }
 .bell__item {
   position: relative;
@@ -594,7 +594,7 @@ button { cursor: pointer; }
   background: var(--c-orange);
 }
 .bell__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.bell__line { font-size: var(--fs-ui); line-height: 1.35; color: var(--c-ink-soft); }
+.bell__line { font-size: var(--fs-ui); line-height: 18px; color: var(--c-ink-soft); }
 .bell__line strong { font-weight: 600; }
 .bell__quote { font-size: var(--fs-meta); color: var(--c-muted-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bell__time { font-size: var(--fs-small); color: var(--c-muted-2); }
@@ -611,6 +611,6 @@ html .ds-option { padding-top: 1.8px; }
 html .ds-tab { padding-top: 2.8px; }
 html :is(.ds-timer, .ds-stats) { padding-top: 2.2px; }
 html .dash__team { padding-top: 2.8px; }
-html :is(.ds-menu__item, .sp__primary, .sp__segment button, .entry__go, .tr__pill, .dash__team, .vp__tip, .who__item, .player__menu-item) {
+html :is(.ds-menu__item, .sp__primary, .sp__segment button, .entry__go, .tr__pill, .vp__tip, .who__item, .player__menu-item) {
   padding-top: var(--optical);
 }
