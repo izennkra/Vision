@@ -314,14 +314,7 @@
 .player:fullscreen .player__caption span { font-size: 26px; }
 .player:fullscreen .player__controls { padding: 50px 24px 16px; }
 
-@media (max-width: 600px) {
-  .player__group { gap: 0; }
-  .player__btn { min-width: 32px; height: 32px; }
-  .player__volume-range { display: none; }
-  .player__time { position: static; transform: none; margin: 0 4px; }
-  .player__caption span { font-size: 13px; }
-  .player__caption.is-raised { bottom: 70px; }
-}
+
 
 /* --- Commentaires ------------------------------------------------------------ */
 /* --- Panneau de droite : onglets Commentaires / Transcription ---------------- */
@@ -389,29 +382,7 @@
   .comments { min-height: 70vh; }
 }
 
-/* Téléphone : marges réduites, boutons à taille de doigt. */
-@media (max-width: 600px) {
-  .vp__main { padding: 16px 16px 20px; }
-  .vp__top, .vp__brand { min-height: 0; }
-  .vp__top .ds-logo { width: 64px; height: 52px; }
-  .vp__top .vp__actions { margin-top: 4px; }
-  .vp__top .ds-action { height: 34px; padding: var(--optical) 14px 0; font-size: 15px; }
-  .vp__link { width: 34px; height: 34px; }
-  .vp__link svg { width: 16px; height: 16px; }
-  .vp__card { margin-top: 24px; }
-  .vp__head { height: auto; padding: 18px 16px 16px; }
-  .vp__title-row { flex-direction: column; gap: 10px; }
-  .vp__author { flex-wrap: wrap; font-size: 14px; }
-  .vp__player { padding: 0; }
-  .player { border-radius: 0; } /* bord à bord sur téléphone */
-  .vp__desc { padding: 18px 16px 20px; }
-  .comments { padding: 0 12px 16px; min-height: 0; }
-  .comments__list { overflow: visible; }
-  .comments__inner { padding: 20px 4px 0; }
-  .comments__send { width: 64px; height: auto; border-radius: 16px; }
-  .comments__send svg { width: 22px; height: 22px; }
-  .ds-comment-input.comments__input { height: 112px; }
-}
+
 
 
 /* --- Spectateurs (clic sur « N vues ») ------------------------------------- */
@@ -484,11 +455,7 @@
 
 .who__item svg { color: var(--c-green); }
 .who__name { flex: 1; }
-@media (max-width: 600px) {
-  .who__item { min-height: 50px; font-size: 16px; }
-  .who__title { font-size: 16px; }
-  .comments__text, .comments__name { font-size: 16px; }
-}
+
 
 /* --- Transcription --------------------------------------------------------------- */
 .tr { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 22px 22px; }
@@ -548,17 +515,167 @@
 .tr__menu-item svg { margin-left: auto; color: var(--c-green); }
 .tr__orig { font-size: var(--fs-small); color: var(--c-muted-2); }
 @media (max-width: 960px) { .side { min-height: 70vh; } }
-@media (max-width: 600px) {
-  .side { min-height: 0; }
-  .side__tabs { margin: 18px 12px 0; }
-  .side__tabs button { height: 32px; padding: var(--optical) 14px 0; font-size: 15px; }
-  .tr { padding: 0 12px 16px; }
-  .tr__list { overflow: visible; max-height: none; }
-  .tr__cue { font-size: 15px; }
-  .tr__pill { height: 42px; font-size: 15px; }
-}
+
 .player__menu-action { color: #8fe08f; }
-.player__menu-more { color: rgba(255, 255, 255, 0.6); }
 .player__menu-more { color: rgba(255, 255, 255, 0.6); }
 .vp__desc-pending { margin: 8px 0 0; color: var(--c-muted-2); }
 .vp__desc-pending::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%; background: var(--c-green); animation: vp-pulse 1.2s ease-in-out infinite; }
+
+/* Double toucher sur un côté du lecteur : « −10 s » / « +10 s ». */
+.player__skip {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  padding: 7px 14px 6px;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--c-white);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  animation: player-skip 650ms ease forwards;
+}
+.player__skip.is-back { left: 10%; }
+.player__skip.is-ahead { right: 10%; }
+@keyframes player-skip {
+  0% { opacity: 0; transform: translateY(-50%) scale(0.9); }
+  15%, 70% { opacity: 1; transform: translateY(-50%) scale(1); }
+  100% { opacity: 0; transform: translateY(-50%) scale(1); }
+}
+
+/* Compteur dans l'onglet et grip de la feuille « Qui êtes-vous ? » : téléphone uniquement. */
+.side__count, .who__grip, .who__backdrop, .vp__desc-more { display: none; }
+
+/* Écran tactile : barre de progression plus facile à attraper au doigt. */
+@media (pointer: coarse) {
+  .player__track { height: 26px; }
+  .player__rail, .player__fill { top: 12px; height: 3px; }
+  .player__knob { top: 7.5px; width: 12px; height: 12px; margin-left: -6px; }
+  .player__marker { top: 11px; }
+  .player__track:hover .player__knob { transform: none; }
+}
+
+/* ==========================================================================
+   TÉLÉPHONE — la page se lit de haut en bas comme une appli : vidéo bord à bord
+   (elle reste en haut de l'écran une fois lancée), puis description, puis
+   commentaires avec le champ toujours à portée de pouce.
+   ========================================================================== */
+@media (max-width: 600px) {
+  .vp { display: flex; flex-direction: column; height: auto; min-height: 100dvh; }
+  .vp__main, .vp__card { display: contents; }
+
+  .vp__top { min-height: 0; padding: 14px 16px 0; }
+  .vp__brand { min-height: 0; }
+  .vp__top .ds-logo { width: 56px; height: 46px; }
+  .vp__brand .vp__back { margin-top: 8px; }
+  .vp__top .vp__actions { margin-top: 6px; }
+  .vp__top .ds-action { height: 36px; padding: var(--optical) 16px 0; font-size: 15px; }
+  .vp__link { width: 36px; height: 36px; }
+  .vp__link svg { width: 16px; height: 16px; }
+  .vp__tip { display: none; }
+
+  .vp__head { height: auto; margin-top: 16px; padding: 18px 16px 16px; background: var(--c-surface); }
+  .vp__title-row { flex-direction: column; gap: 12px; }
+  .vp__title { font-size: 18px; line-height: 24px; row-gap: 2px; }
+  .vp__author { flex-wrap: wrap; margin-top: 10px; font-size: 14px; }
+
+  .vp__player { padding: 0; border-bottom: 0; background: var(--c-surface); }
+  .vp__player.is-pinned { position: sticky; top: 0; z-index: 20; }
+  .player { border-radius: 0; max-height: 58dvh; } /* bord à bord ; une vidéo en hauteur ne prend pas tout l'écran */
+  .player::before, .player.is-started::before, .player.has-poster::before { inset: 0; border-radius: 0; }
+
+  .vp__desc { padding: 18px 16px 20px; background: var(--c-surface); border-top: 1px solid var(--c-surface-strong); }
+  .vp__desc-text { font-size: 15px; line-height: 22px; }
+  .vp__desc-text.is-folded { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+  .vp__desc-more { display: block; margin-top: 8px; padding: 4px 0; font-size: 15px; color: var(--c-ink); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Lecteur */
+  .player__controls { padding: 30px 8px 6px; }
+  .player__group { gap: 0; }
+  .player__btn { min-width: 36px; height: 36px; }
+  .player__volume-range { display: none; }
+  .player__time { position: static; transform: none; margin: 0 4px; }
+  .player__caption span { font-size: 14px; }
+  .player__caption.is-raised { bottom: 78px; }
+  .player__menu { right: 8px; bottom: 8px; max-height: calc(100% - 16px); min-width: 190px; font-size: 14px; }
+  .player__menu-item { height: 38px; }
+  .player:fullscreen .player__caption span { font-size: 20px; }
+
+  /* Onglets */
+  .side { min-height: 0; flex: 1; border-top: 1px solid var(--c-surface-strong); }
+  .side__tabs { margin: 18px 16px 0; }
+  .side__tabs button { height: 34px; padding: var(--optical) 14px 0; font-size: 15px; }
+  .side__count { display: inline; margin-left: 6px; opacity: 0.6; font-variant-numeric: tabular-nums; }
+
+  /* Commentaires */
+  .comments { flex: 1; min-height: 0; padding: 0 16px; }
+  .comments__list { flex: none; overflow: visible; }
+  .comments__inner { padding: 22px 0 8px; }
+  .comment + .comment { margin-top: 28px; }
+  .comment .ds-comment__head { flex-wrap: wrap; font-size: 15px; }
+  .comment .ds-comment__text { font-size: 15px; line-height: 21px; }
+  .comment .ds-comment__reply { min-height: 32px; margin-top: 4px; font-size: 13px; }
+  .comment--reply { margin-left: 24px; }
+  .ds-comment__time { padding: 2px 0; }
+  .comments__count:not(.is-reply) { display: none; }
+  .comments__count { margin: 0 0 8px; font-size: 14px; }
+
+  /* Champ de commentaire : collé en bas de l'écran tant qu'on est dans les commentaires. */
+  .comments__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 25;
+    margin: auto -16px 0;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--c-surface);
+    box-shadow: 0 -1px 0 var(--c-surface-strong);
+  }
+  .comments__compose { gap: 8px; align-items: flex-end; }
+  .ds-comment-input.comments__input { height: auto; min-height: 50px; padding: 8px 44px 8px 10px; align-items: center; gap: 8px; }
+  .comments__fields { gap: 0; height: auto; }
+  .comments__as { line-height: 18px; font-size: 13px; }
+  .comments__name { line-height: 24px; }
+  .comments__text, .comments__name { font-size: 16px; } /* 16 px : pas de zoom automatique sur iPhone */
+  .comments__text { display: block; flex: none; width: 100%; height: 24px; padding: 0; line-height: 24px; resize: none; }
+  .comments__who .ds-initials, .comments__input > .ds-initials { width: 28px; height: 28px; }
+  .comments__mic { right: 10px; bottom: 50%; transform: translateY(50%); padding: 4px; }
+  .comments__send { width: 50px; height: 50px; }
+  .comments__send svg { width: 22px; height: 22px; }
+
+  /* « Qui êtes-vous ? » : feuille qui monte du bas, grandes lignes faciles à toucher. */
+  .who__backdrop { display: block; position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.3); animation: ds-fade-in 200ms ease; }
+  .who {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 61;
+    display: flex;
+    flex-direction: column;
+    max-height: 82dvh;
+    padding: 8px 12px calc(14px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
+    animation: who-up 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  @keyframes who-up { from { transform: translateY(100%); } }
+  .who__grip { display: block; flex: none; width: 36px; height: 4px; margin: 0 auto 16px; border-radius: 2px; background: var(--c-surface-button); }
+  .who__title { padding: 0 10px; font-size: 18px; }
+  .who__hint { padding: 0 10px; margin-top: 4px; font-size: 14px; }
+  .who__list { max-height: none; min-height: 0; margin-top: 14px; overflow-y: auto; overscroll-behavior: contain; }
+  .who__item { min-height: 58px; gap: 14px; padding: 0 12px 0 10px; border-radius: 10px; font-size: 17px; }
+  .who__item .ds-initials { width: 36px; height: 36px; }
+  .who__item > svg { width: 18px; height: 18px; }
+
+  /* Transcription */
+  .tr { flex: 1; padding: 0 16px; }
+  .tr__list { flex: none; overflow: visible; max-height: none; }
+  .tr__cue { font-size: 15px; line-height: 21px; padding: 6px 10px; }
+  .tr__bar { position: sticky; bottom: 0; z-index: 25; margin: auto -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--c-surface); box-shadow: 0 -1px 0 var(--c-surface-strong); }
+  .tr__pill { height: 42px; font-size: 15px; }
+  .tr__menu { max-height: 50dvh; }
+  .tr__menu-item { height: 42px; font-size: 15px; }
+
+  .viewers__panel { left: 0; right: auto; width: min(300px, calc(100vw - 32px)); }
+}

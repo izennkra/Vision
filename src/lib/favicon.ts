@@ -13,7 +13,7 @@ const href = (svg: string) => `data:image/svg+xml,${encodeURIComponent(svg)}`
 
 export function animateFavicon() {
   const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-  if (!link || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (!link) return
   let gaze = { x: 0, y: 0 }
   const show = (open = 1) => (link.href = href(eye(gaze.x, gaze.y, open)))
   const rand = (a: number, b: number) => a + Math.random() * (b - a)

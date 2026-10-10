@@ -178,7 +178,6 @@ button { cursor: pointer; }
   0%, 100% { transform: rotate(var(--a)) scaleY(1) rotate(calc(-1 * var(--a))); }
   50% { transform: rotate(var(--a)) scaleY(0.06) rotate(calc(-1 * var(--a))); }
 }
-@media (prefers-reduced-motion: reduce) { .logo__eye.is-blinking { animation: none; } .logo__pupil { transition: none; } }
 
 /* Avatar rond */
 .ds-avatar { display: block; flex: none; border-radius: var(--r-round); object-fit: cover; overflow: hidden; }
@@ -429,7 +428,6 @@ button { cursor: pointer; }
 .eye__white { transform-box: view-box; transform-origin: 50px 50px; }
 .eye__white.is-blinking { animation: eye-blink 200ms ease-in-out; }
 @keyframes eye-blink { 0%, 100% { transform: scaleY(1); } 45%, 55% { transform: scaleY(0.06); } }
-@media (prefers-reduced-motion: reduce) { .eye__white.is-blinking { animation: none; } .eye__pupil { transition: none; } }
 
 /* Commentaire */
 .ds-comment__head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-body); color: var(--c-ink-soft); }

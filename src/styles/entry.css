@@ -84,8 +84,10 @@
 @keyframes code-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
 
 @media (max-width: 600px) {
-  .entry__logo { top: 16px; left: 16px; }
-  .entry__logo .ds-logo { width: 64px; height: 52px; }
+  .entry { min-height: 100dvh; padding: 96px 16px 32px; }
+  .entry--login .entry__field { font-size: 16px; } /* pas de zoom automatique sur iPhone */
+  .entry__logo { top: 14px; left: 16px; }
+  .entry__logo .ds-logo { width: 56px; height: 46px; }
   .entry--code .entry__card { padding: 44px 16px; }
   .code { gap: 6px; }
   .code__box { width: min(42px, calc((100vw - 96px) / 6)); }

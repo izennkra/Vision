@@ -128,6 +128,12 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const dragging = useRef(false)
   const idleTimer = useRef<number>(undefined)
   const firstPlay = useRef(false)
+  // Écran tactile : un toucher affiche ou masque les commandes, deux touchers sur un côté avancent ou reculent de 10 s.
+  const touch = useRef(false)
+  const lastTap = useRef(0)
+  const tapTimer = useRef<number>(undefined)
+  const [skip, setSkip] = useState<{ dir: -1 | 1; n: number } | null>(null)
+  const skipTimer = useRef<number>(undefined)
 
   useEffect(() => setDuration((d) => d || knownDuration), [knownDuration])
 
@@ -208,7 +214,36 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     window.clearTimeout(idleTimer.current)
     idleTimer.current = window.setTimeout(() => !dragging.current && setIdle(true), 2400)
   }
-  useEffect(() => () => window.clearTimeout(idleTimer.current), [])
+  useEffect(
+    () => () => {
+      window.clearTimeout(idleTimer.current)
+      window.clearTimeout(tapTimer.current)
+      window.clearTimeout(skipTimer.current)
+    },
+    [],
+  )
+
+  const onVideoTap = (e: React.MouseEvent<HTMLVideoElement>) => {
+    if (!touch.current || !started) return toggle()
+    const v = video.current
+    const r = e.currentTarget.getBoundingClientRect()
+    const side = e.clientX < r.left + r.width / 3 ? -1 : e.clientX > r.right - r.width / 3 ? 1 : 0
+    const double = Date.now() - lastTap.current < 320
+    lastTap.current = Date.now()
+    window.clearTimeout(tapTimer.current)
+    if (double && side && v) {
+      lastTap.current = 0
+      seekTo(v.currentTime + side * 10)
+      setSkip((s) => ({ dir: side, n: (s?.n ?? 0) + 1 }))
+      window.clearTimeout(skipTimer.current)
+      skipTimer.current = window.setTimeout(() => setSkip(null), 650)
+      wake()
+      return
+    }
+    if (!playing || idle) return wake()
+    // Commandes visibles : un toucher les masque (après un court délai, pour laisser place au double toucher).
+    tapTimer.current = window.setTimeout(() => setIdle(true), 300)
+  }
 
   const ratioAt = (clientX: number) => {
     const r = track.current!.getBoundingClientRect()
@@ -240,9 +275,21 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   }
 
   const fullscreen = useCallback(() => {
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void box.current?.requestFullscreen().catch(() => {})
-  }, [])
+    const v = video.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+      orientation?.unlock?.()
+    } else if (box.current && document.fullscreenEnabled) {
+      void box.current
+        .requestFullscreen()
+        // Téléphone (Android) : une vidéo en largeur passe en paysage.
+        .then(() => {
+          if (aspect > 1 && matchMedia('(pointer: coarse)').matches) orientation?.lock?.('landscape').catch(() => {})
+        })
+        .catch(() => {})
+    } else v?.webkitEnterFullscreen?.() // iPhone : seul le lecteur d'Apple peut passer en plein écran
+  }, [aspect])
 
   const changeVolume = (v: number) => {
     setVolume(v)
@@ -300,8 +347,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       tabIndex={0}
       className={`player${started ? ' is-started' : ''}${showControls ? ' is-active' : ''}${playing && idle && !menu ? ' is-idle' : ''}${poster ? ' has-poster' : ''}`}
       style={{ aspectRatio: String(aspect) }}
-      onMouseMove={wake}
-      onMouseLeave={() => !menu && setIdle(true)}
+      onPointerDownCapture={(e) => (touch.current = e.pointerType === 'touch')}
+      onMouseMove={() => !touch.current && wake()}
+      onMouseLeave={() => !touch.current && !menu && setIdle(true)}
       onKeyDown={onKey}
       aria-label="Lecteur vidéo"
     >
@@ -310,11 +358,14 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         src={src || undefined}
         preload="metadata"
         playsInline
-        onClick={toggle}
-        onDoubleClick={fullscreen}
+        onClick={onVideoTap}
+        onDoubleClick={() => !touch.current && fullscreen()}
         onLoadedMetadata={onMeta}
         onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
-        onPlay={() => setPlaying(true)}
+        onPlay={() => {
+          setPlaying(true)
+          wake() // les commandes s'effacent d'elles-mêmes peu après le début de la lecture (utile au doigt)
+        }}
         onPause={() => setPlaying(false)}
         onWaiting={() => setWaiting(true)}
         onPlaying={() => setWaiting(false)}
@@ -337,6 +388,12 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         </button>
       )}
       {started && waiting && playing && <span className="player__spinner" aria-hidden />}
+      {skip && (
+        <span key={skip.n} className={`player__skip ${skip.dir < 0 ? 'is-back' : 'is-ahead'}`} aria-hidden>
+          {skip.dir < 0 ? '−' : '+'}
+          {skip.n * 10} s
+        </span>
+      )}
 
       {started && (
         <div className="player__controls" onClick={(e) => e.stopPropagation()}>

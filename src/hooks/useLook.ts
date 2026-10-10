@@ -1,9 +1,10 @@
 // Regard vivant (photos de profil et logo) : la pupille se tourne vers des points de l'écran choisis
 // au hasard, à des rythmes variés, et l'œil cligne de temps en temps (parfois deux fois de suite).
+// Toujours animé, y compris sur téléphone avec « Réduire les animations » : le mouvement est petit et lent,
+// et c'est l'identité de Visions.
 import { useEffect, useState, type RefObject } from 'react'
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a)
-const reduceMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /** `gaze` : direction du regard, de -1 à 1 sur chaque axe ; `blink` change à chaque clignement. */
 export function useLook(ref: RefObject<Element | null>) {
@@ -11,7 +12,6 @@ export function useLook(ref: RefObject<Element | null>) {
   const [blink, setBlink] = useState(0)
 
   useEffect(() => {
-    if (reduceMotion()) return
     let lookTimer: number
     let blinkTimer: number
     const look = () => {

@@ -1,7 +1,7 @@
 // Page vidéo, en deux versions :
 // - « owner » : page personnelle modifiable (titre, client, description, publier, supprimer) ;
 // - « client » : page de partage (regarder et commenter, rien d'autre).
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { owner } from '../config'
 import { repo, type Client, type Comment, type ID, type Quality, type Transcript, type Video } from '../data'
@@ -49,6 +49,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const [reload, setReload] = useState(0)
   const [panel, setPanel] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [playing, setPlaying] = useState(false)
   const [now, setNow] = useState(0)
   const [time, setTime] = useState(0)
   const [tab, setTab] = useState<'comments' | 'transcript'>('comments')
@@ -189,6 +190,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
 
   // Vues : comptées sur la page client uniquement, avec la proportion regardée.
   const onFirstPlay = async () => {
+    setPlaying(true)
     if (isOwner || !video) return
     const view = await repo.recordView({
       videoId: video.id,
@@ -324,7 +326,8 @@ export default function VideoPage({ mode }: { mode: Mode }) {
             </div>
           </div>
 
-          <div className="vp__player">
+          {/* Téléphone : une fois lancée, la vidéo reste en haut de l'écran pendant qu'on lit et commente. */}
+          <div className={`vp__player${playing ? ' is-pinned' : ''}`}>
             <Player
               ref={player}
               src={src}
@@ -348,6 +351,8 @@ export default function VideoPage({ mode }: { mode: Mode }) {
               <div className="vp__desc-label"><IconInfo />Description</div>
               {summaryWaiting ? (
                 <p className="vp__desc-text vp__desc-pending">Le résumé de la vidéo s’écrit ici automatiquement, à la fin de la transcription…</p>
+              ) : !isOwner ? (
+                <FoldedText text={video.description} />
               ) : (
               <InlineEdit
                 className="vp__desc-text"
@@ -366,7 +371,9 @@ export default function VideoPage({ mode }: { mode: Mode }) {
 
       <aside className="side">
         <div className="side__tabs" role="tablist">
-          <button role="tab" aria-selected={tab === 'comments'} className={tab === 'comments' ? 'is-on' : ''} onClick={() => setTab('comments')}>Commentaires</button>
+          <button role="tab" aria-selected={tab === 'comments'} className={tab === 'comments' ? 'is-on' : ''} onClick={() => setTab('comments')}>
+            Commentaires{comments.length > 0 && <span className="side__count">{comments.length}</span>}
+          </button>
           <button role="tab" aria-selected={tab === 'transcript'} className={tab === 'transcript' ? 'is-on' : ''} onClick={() => setTab('transcript')}>Transcription</button>
         </div>
         <div className="side__panel" hidden={tab !== 'comments'}>
@@ -432,5 +439,29 @@ export default function VideoPage({ mode }: { mode: Mode }) {
       )}
     </div>
     </PeopleContext.Provider>
+  )
+}
+
+/** Description côté client : sur téléphone, repliée à quelques lignes avec « Afficher plus » si elle est longue. */
+function FoldedText({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [open, setOpen] = useState(false)
+  const [long, setLong] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const check = () => setLong(el.scrollHeight > el.clientHeight + 1)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [text])
+  return (
+    <>
+      <span ref={ref} className={`vp__desc-text${open ? '' : ' is-folded'}`}>{text}</span>
+      {(long || open) && (
+        <button className="vp__desc-more" onClick={() => setOpen((o) => !o)}>{open ? 'Afficher moins' : 'Afficher plus'}</button>
+      )}
+    </>
   )
 }

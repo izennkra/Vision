@@ -10,6 +10,9 @@ import { Initials } from './Initials'
 
 export const ANONYMOUS = 'Anonyme'
 
+/** Mise en page téléphone (même seuil que le CSS). */
+const phone = () => matchMedia('(max-width: 600px)').matches
+
 export { initialsOf } from './Initials'
 
 interface Props {
@@ -36,6 +39,8 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
   const [name, setName] = useState(author ?? '')
   const picking = !author && !!profiles?.length
   const [chosen, setChosen] = useState<string | null>(profile)
+  const chosenRef = useRef(chosen)
+  chosenRef.current = chosen
   const [picker, setPicker] = useState(false)
   const sendAfterPick = useRef(false)
   const compose = useRef<HTMLDivElement>(null)
@@ -54,6 +59,14 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
   }, [comments.length])
 
   useEffect(() => setChosen(profile), [profile])
+
+  // Téléphone : le champ grandit avec le texte (une ligne au départ, cinq au plus).
+  useEffect(() => {
+    const el = field.current
+    if (!el || !phone()) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [text])
 
   // Le choix du profil se ferme d'un clic ailleurs ou avec Échap.
   useEffect(() => {
@@ -93,13 +106,14 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
   }
 
   const choose = (p: string) => {
+    chosenRef.current = p
     setChosen(p)
     setPicker(false)
     onAuthorChange?.(p)
     if (sendAfterPick.current) {
       sendAfterPick.current = false
       void send(p)
-    } else requestAnimationFrame(() => field.current?.focus()) // après le rendu : le champ ne rouvre pas le choix
+    } else field.current?.focus() // tout de suite : sur iPhone, le clavier ne s'ouvre que pendant le toucher
   }
 
   const reply = (c: Comment) => {
@@ -144,7 +158,8 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
         <div className="comments__inner">{roots.map((c) => item(c))}</div>
       </div>
 
-      <div className="comments__count">
+      <div className="comments__footer">
+      <div className={`comments__count${replyTo ? ' is-reply' : ''}`}>
         {replyTo ? (
           <>
             Réponse à {replyTo.authorName}
@@ -156,8 +171,10 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
       </div>
 
       <div ref={compose} className="comments__compose">
+        {picker && profiles && <div className="who__backdrop" onClick={() => setPicker(false)} aria-hidden />}
         {picker && profiles && (
           <div className="who" role="dialog" aria-label="Qui êtes-vous ?">
+            <span className="who__grip" aria-hidden />
             <div className="who__title">Qui êtes-vous ?</div>
             <div className="who__hint">Votre nom apparaîtra avec vos commentaires.</div>
             <div className="who__list">
@@ -204,7 +221,13 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
               className="ds-edit comments__text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onFocus={() => picking && !chosen && setPicker(true)}
+              rows={1}
+              onFocus={(e) => {
+                if (!picking || chosenRef.current) return
+                setPicker(true)
+                // Téléphone : on choisit d'abord son nom, le clavier s'ouvre ensuite.
+                if (phone()) e.currentTarget.blur()
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
@@ -230,6 +253,7 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
         <button className="ds-round-primary comments__send" onClick={() => send()} aria-label="Envoyer">
           <IconSend size={30} />
         </button>
+      </div>
       </div>
     </div>
   )
