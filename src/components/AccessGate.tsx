@@ -16,6 +16,8 @@ interface Props {
 export function AccessGate({ lock, onUnlock, onDone }: Props) {
   const [code, setCode] = useState('')
   const [error, setError] = useState(false)
+  /** Résultat affiché sur les cases : vert si le code est bon, rouge s'il est faux (puis on efface). */
+  const [result, setResult] = useState<null | 'ok' | 'wrong'>(null)
   const [busy, setBusy] = useState(false)
   const [focused, setFocused] = useState(false)
   const input = useRef<HTMLInputElement>(null)
@@ -25,10 +27,20 @@ export function AccessGate({ lock, onUnlock, onDone }: Props) {
     if (value.length !== CODE_LENGTH || busy) return
     setBusy(true)
     const ok = await onUnlock(value)
-    setBusy(false)
-    if (ok) return onDone()
+    if (ok) {
+      setResult('ok')
+      window.setTimeout(onDone, 650) // le temps de voir les cases passer au vert
+      return
+    }
+    setResult('wrong')
     setError(true)
-    input.current?.focus()
+    // Le code faux s'efface pour retenter.
+    window.setTimeout(() => {
+      setCode('')
+      setResult(null)
+      setBusy(false)
+      input.current?.focus()
+    }, 900)
   }
 
   const text =
@@ -53,13 +65,14 @@ export function AccessGate({ lock, onUnlock, onDone }: Props) {
           <h1 className="entry__title">Bienvenue dans<span className="ds-accent-link">Visions</span></h1>
           <p className="entry__text">{text}</p>
           {lock.codeAllowed && (
-            <div className={`code${error ? ' is-error' : ''}`} onClick={() => input.current?.focus()}>
+            <div className={`code${result === 'wrong' ? ' is-error' : ''}${result === 'ok' ? ' is-success' : ''}`} onClick={() => input.current?.focus()}>
               <input
                 ref={input}
                 className="code__input"
                 value={code}
                 onChange={(e) => {
                   const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LENGTH)
+                  if (busy) return
                   setCode(v)
                   setError(false)
                   if (v.length === CODE_LENGTH) void submit(v) // dernier caractère : on valide tout seul
@@ -89,7 +102,7 @@ export function AccessGate({ lock, onUnlock, onDone }: Props) {
           )}
         </div>
         {lock.codeAllowed && (
-          <button className="entry__go" disabled={code.length !== CODE_LENGTH || busy}>{busy ? '...' : 'Entrer'}</button>
+          <button className="entry__go" disabled={code.length !== CODE_LENGTH || busy}>Entrer</button>
         )}
         <p className="entry__error" role="alert">{error ? 'Code incorrect, vérifiez et réessayez.' : ''}</p>
       </form>

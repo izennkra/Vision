@@ -1,104 +1,89 @@
-// Panneau « Partager » (page personnelle) : qui va regarder, accès public ou privé, code d'accès.
-// Chaque réglage est enregistré tout de suite ; le lien direct reste grisé tant qu'aucune personne n'est prévue.
+// Panneau « Partager » (page personnelle) : qui va regarder (équipes des dossiers + personnes de la vidéo),
+// accès public ou privé, code d'accès. Chaque réglage est enregistré tout de suite ; le lien direct reste
+// grisé tant qu'aucune personne n'est prévue.
 import { useEffect, useRef, useState } from 'react'
-import type { Access, ID, Video } from '../data'
+import { repo, type Access, type Client, type Person, type Video } from '../data'
 import type { VideoPatch } from '../data/repository'
+import { teamLabel } from '../lib/clients'
+import { audienceOf } from '../lib/people'
 import { inviteMailto, newAccessCode, personalUrl, shareUrl } from '../lib/share'
 import { Initials } from './Initials'
-import { IconCheck, IconClose, IconCopy, IconGlobe, IconLink, IconLock, IconMail, IconPlus, IconRefresh } from './icons'
+import { PeopleEditor } from './PeopleEditor'
+import { IconCheck, IconClose, IconCopy, IconGlobe, IconLink, IconLock, IconMail, IconRefresh } from './icons'
 import { useToast } from './Toast'
 import './share-panel.css'
 
 interface Props {
   video: Video
+  clients: Client[]
   onChange: (patch: VideoPatch) => Promise<Video>
+  onClientChange: (client: Client) => void
   onClose: () => void
   onDelete: () => void
 }
 
-type Row = { key: string; id?: ID; name: string; email: string }
-
-const toRows = (v: Video): Row[] => (v.people ?? []).map((p) => ({ key: p.id, id: p.id, name: p.name, email: p.email ?? '' }))
-const valid = (r: Row) => r.name.trim() && r.name.trim().toLowerCase() !== 'anonyme'
-let nextKey = 0
-
-export function SharePanel({ video, onChange, onClose, onDelete }: Props) {
+export function SharePanel({ video, clients, onChange, onClientChange, onClose, onDelete }: Props) {
   const toast = useToast()
-  const [rows, setRows] = useState<Row[]>(() => (video.people?.length ? toRows(video) : [{ key: `n${nextKey++}`, name: '', email: '' }]))
   const [code, setCode] = useState(video.accessCode ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const focusKey = useRef<string | null>(video.people?.length ? null : rows[0]?.key ?? null)
-  const saving = useRef<Promise<unknown>>(Promise.resolve())
+  const latest = useRef(video)
+  latest.current = video
   const access: Access = video.access ?? 'public'
-  const saved = (video.people ?? []).length
+  const saved = audienceOf(video, clients).length
   const draft = video.status !== 'published'
 
+  // Dossier de la vidéo, puis son agence : chacun a son équipe.
+  const folders: Client[] = []
+  for (let f = clients.find((c) => c.id === video.clientId); f && folders.length < 2; f = clients.find((c) => c.id === f!.parentId)) folders.push(f)
+
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.pe__picker') && onClose()
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [onClose])
 
   useEffect(() => setCode(video.accessCode ?? ''), [video.accessCode])
 
-  // Personnes : enregistrées à la sortie d'un champ, à l'ajout et à la suppression.
-  const savePeople = (list = rows) => {
-    const payload = list.filter(valid).map((r) => ({ id: r.id, name: r.name.trim(), email: r.email.trim() || null }))
-    const before = (video.people ?? []).map((p) => ({ id: p.id, name: p.name, email: p.email }))
-    if (JSON.stringify(payload) === JSON.stringify(before)) return
-    saving.current = saving.current.then(async () => {
-      const v = await onChange({ people: payload })
-      // Le serveur garde l'ordre : on récupère l'identifiant de chaque nouvelle personne sans toucher à la saisie en cours.
-      const ids = new Map(list.filter(valid).map((r, i) => [r.key, v.people?.[i]?.id]))
-      setRows((cur) => cur.map((r) => (ids.get(r.key) ? { ...r, id: ids.get(r.key) } : r)))
-    })
-  }
-
-  const edit = (key: string, field: 'name' | 'email', value: string) =>
-    setRows((cur) => cur.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
-
-  const add = () => {
-    const key = `n${nextKey++}`
-    focusKey.current = key
-    setRows((cur) => [...cur, { key, name: '', email: '' }])
-  }
-
-  const remove = (key: string) => {
-    const list = rows.filter((r) => r.key !== key)
-    setRows(list)
-    savePeople(list)
-  }
-
   const flash = (key: string) => {
     setCopiedKey(key)
     window.setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1400)
   }
 
-  const personOf = (r: Row) => video.people?.find((p) => p.id === r.id)
-
-  const copyPersonal = async (r: Row) => {
-    const p = personOf(r)
-    if (!p) return
-    await navigator.clipboard.writeText(personalUrl(video, p))
-    flash(r.key)
-    toast(`Lien personnel de ${p.name} copié`)
-    if (draft) await onChange({ status: 'published' })
+  const publishIfDraft = async () => {
+    if (latest.current.status !== 'published') await onChange({ status: 'published' })
   }
 
-  const invite = async (r: Row) => {
-    const p = personOf(r)
-    if (!p) return
-    if (draft) await onChange({ status: 'published' })
+  const copyPersonal = async (p: Person) => {
+    await navigator.clipboard.writeText(personalUrl(video, p))
+    flash(p.id)
+    toast(`Lien personnel de ${p.name} copié`)
+    await publishIfDraft()
+  }
+
+  const invite = async (p: Person) => {
+    await publishIfDraft()
     window.location.href = inviteMailto({ ...video, accessCode: code || null }, p)
   }
 
+  /** Inviter et copier le lien personnel : pour les personnes déjà enregistrées. */
+  const personActions = (p: Person) => (
+    <>
+      <button className="ds-hover sp__icon" onClick={() => invite(p)} disabled={!p.email} title={p.email ? `Inviter ${p.name} par e-mail` : 'Ajoutez un e-mail pour inviter'} aria-label="Inviter par e-mail">
+        <IconMail size={16} />
+      </button>
+      <button className="ds-hover sp__icon" onClick={() => copyPersonal(p)} title="Copier son lien personnel" aria-label="Copier le lien personnel">
+        {copiedKey === p.id ? <IconCheck size={16} /> : <IconLink size={16} />}
+      </button>
+    </>
+  )
+
   const copyLink = async () => {
-    await saving.current
     await navigator.clipboard.writeText(shareUrl(video.shareToken))
-    if (draft) await onChange({ status: 'published' })
+    const wasDraft = latest.current.status !== 'published'
+    await publishIfDraft()
     flash('link')
-    toast(draft ? 'Vidéo publiée — lien copié' : 'Lien copié')
+    toast(wasDraft ? 'Vidéo publiée — lien copié' : 'Lien copié')
   }
 
   const setAccess = (a: Access) => a !== access && onChange({ access: a })
@@ -133,61 +118,42 @@ export function SharePanel({ video, onChange, onClose, onDelete }: Props) {
         <section className="sp__section">
           <div className="sp__label">Qui va regarder ?</div>
           <p className="sp__hint">Chacun choisit son nom au moment de commenter. Avec l’e-mail, vous pouvez envoyer à chacun son lien personnel.</p>
+          {folders.map((f) => (
+            <div key={f.id} className="sp__group">
+              <div className="sp__group-title">
+                Équipe {teamLabel(f, clients)}
+                <span>aussi modifiable depuis le dashboard</span>
+              </div>
+              <PeopleEditor
+                key={f.id}
+                people={f.people ?? []}
+                onSave={async (people) => {
+                  const updated = await repo.setClientPeople(f.id, people)
+                  onClientChange(updated)
+                  return updated.people ?? []
+                }}
+                actions={personActions}
+                startWithEmptyRow={f.id === video.clientId && !saved}
+                addLabel={`Ajouter à l’équipe ${f.name}`}
+              />
+            </div>
+          ))}
+          <div className="sp__group">
+            {folders.length > 0 && <div className="sp__group-title">Pour cette vidéo seulement</div>}
+            <PeopleEditor
+              people={video.people ?? []}
+              onSave={async (people) => (await onChange({ people })).people ?? []}
+              actions={personActions}
+              startWithEmptyRow={!folders.length && !saved}
+            />
+          </div>
           <ul className="sp__people">
-            {rows.map((r) => {
-              const p = personOf(r)
-              return (
-                <li key={r.key} className="sp__person">
-                  <Initials name={r.name} className="sp__initials" />
-                  <div className="sp__fields">
-                    <input
-                      ref={(el) => {
-                        if (el && focusKey.current === r.key) {
-                          focusKey.current = null
-                          el.focus()
-                        }
-                      }}
-                      className="sp__input sp__name"
-                      value={r.name}
-                      placeholder="Nom, par ex. Victor C."
-                      onChange={(e) => edit(r.key, 'name', e.target.value)}
-                      onBlur={() => savePeople()}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget.nextElementSibling as HTMLInputElement | null)?.focus()}
-                      maxLength={60}
-                      aria-label="Nom"
-                    />
-                    <input
-                      className="sp__input sp__email"
-                      type="email"
-                      value={r.email}
-                      placeholder="E-mail (facultatif)"
-                      onChange={(e) => edit(r.key, 'email', e.target.value)}
-                      onBlur={() => savePeople()}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget.blur(), add())}
-                      aria-label="E-mail"
-                    />
-                  </div>
-                  <div className="sp__row-actions">
-                    <button className="ds-hover sp__icon" onClick={() => invite(r)} disabled={!p || !r.email.trim()} title={r.email.trim() ? `Inviter ${r.name} par e-mail` : 'Ajoutez un e-mail pour inviter'} aria-label="Inviter par e-mail">
-                      <IconMail size={16} />
-                    </button>
-                    <button className="ds-hover sp__icon" onClick={() => copyPersonal(r)} disabled={!p} title="Copier son lien personnel" aria-label="Copier le lien personnel">
-                      {copiedKey === r.key ? <IconCheck size={16} /> : <IconLink size={16} />}
-                    </button>
-                    <button className="ds-hover sp__icon" onClick={() => remove(r.key)} title="Retirer" aria-label="Retirer">
-                      <IconClose size={14} />
-                    </button>
-                  </div>
-                </li>
-              )
-            })}
             <li className="sp__person is-anon">
               <Initials name={null} className="sp__initials" />
               <div className="sp__fields"><span className="sp__anon">Anonyme</span></div>
               <span className="sp__anon-note">Toujours proposé</span>
             </li>
           </ul>
-          <button className="ds-hover sp__add" onClick={add}><IconPlus size={14} />Ajouter une personne</button>
         </section>
 
         <section className="sp__section">

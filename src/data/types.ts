@@ -15,6 +15,8 @@ export interface Client {
   /** Dossier parent (agence), null pour un dossier de premier niveau. */
   parentId: ID | null
   createdAt: ISODate
+  /** Équipe du client : les personnes qui regardent et commentent ses vidéos (et celles de ses sous-dossiers). */
+  people?: Person[]
 }
 
 /** Personne prévue pour regarder et commenter (profil choisi dans les commentaires). */
@@ -26,7 +28,14 @@ export interface Person {
   email: string | null
   /** Jeton de son lien personnel (vide sur la page client). */
   token: string
+  /** Couleur de sa photo de profil (une couleur de la DA) ; null : choisie d'après le nom. */
+  color?: string | null
+  /** Photo importée (adresse de l'image) ; null : l'œil animé. */
+  avatar?: string | null
 }
+
+/** Modification d'une personne (sans jeton : le serveur le crée). */
+export type PersonInput = Pick<Person, 'name' | 'email'> & { id?: ID; color?: string | null; avatar?: string | null }
 
 /** Public : toute personne ayant le lien. Privé : seulement les personnes invitées. */
 export type Access = 'public' | 'private'

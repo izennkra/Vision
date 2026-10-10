@@ -34,6 +34,7 @@ const UPGRADES = [
   'ALTER TABLE videos ADD COLUMN access_code TEXT',
   "ALTER TABLE videos ADD COLUMN people TEXT NOT NULL DEFAULT '[]'",
   'ALTER TABLE videos ADD COLUMN audio_chunks INTEGER',
+  "ALTER TABLE clients ADD COLUMN people TEXT NOT NULL DEFAULT '[]'",
 ]
 
 /** Crée les tables au premier démarrage (une fois par instance du serveur). */
@@ -117,10 +118,43 @@ async function mediaUrl(env: Env, id: string, kind: 'video' | 'thumb') {
 
 // --- Conversion lignes SQL → objets de l'application -------------------------------------------
 
-const toClient = (r: Row) => ({ id: r.id, name: r.name, parentId: r.parent_id ?? null, createdAt: r.created_at })
+/** Personne autorisée à regarder et commenter : nom affiché, e-mail (invitation), jeton de son lien personnel,
+ *  couleur de sa photo de profil (DA) et photo importée éventuelle. */
+type Person = { id: string; name: string; email: string | null; token: string; color?: string | null; avatar?: string | null }
 
-/** Personne autorisée à regarder et commenter : nom affiché, e-mail (invitation), jeton de son lien personnel. */
-type Person = { id: string; name: string; email: string | null; token: string }
+/** Couleurs de photo de profil proposées (DA). */
+const AVATAR_COLORS = ['#007500', '#b400b4', '#f24822', '#4d4d4d', '#000000', '#daa520']
+
+/** Ce que la page client voit d'une personne : jamais l'e-mail ni le lien personnel. */
+const publicPerson = (p: Person): Person => ({ id: p.id, name: p.name, email: null, token: '', color: p.color ?? null, avatar: p.avatar ?? null })
+
+/** Liste envoyée par l'application → personnes enregistrées (on garde l'identifiant et le lien de chacune). */
+function normalizePeople(input: unknown, before: Person[]): Person[] {
+  if (!Array.isArray(input)) return before
+  return (input as Partial<Person>[])
+    .map((x) => {
+      const old = x.id ? before.find((o) => o.id === x.id) : undefined
+      const avatar = typeof x.avatar === 'string' && /^\/media\/avatar\/[\w-]+(\?v=\d+)?$/.test(x.avatar) ? x.avatar : null
+      return {
+        id: old?.id ?? uid(),
+        name: String(x.name ?? '').trim().slice(0, 60),
+        email: String(x.email ?? '').trim().slice(0, 200) || null,
+        token: old?.token ?? token12() + token12(),
+        color: AVATAR_COLORS.includes(String(x.color)) ? String(x.color) : null,
+        avatar,
+      }
+    })
+    .filter((x) => x.name && x.name.toLowerCase() !== 'anonyme')
+    .slice(0, 50)
+}
+
+const toClient = (r: Row, forOwner = true) => ({
+  id: r.id,
+  name: r.name,
+  parentId: r.parent_id ?? null,
+  createdAt: r.created_at,
+  people: forOwner ? peopleOf(r) : peopleOf(r).map(publicPerson),
+})
 
 function peopleOf(r: Row): Person[] {
   try {
@@ -131,14 +165,16 @@ function peopleOf(r: Row): Person[] {
   }
 }
 
-/** `forOwner` : réglages complets ; sinon (page client) seulement les noms, jamais les e-mails ni les liens personnels. */
-async function toVideo(env: Env, r: Row, forOwner = true) {
-  const people = peopleOf(r)
+/**
+ * `forOwner` : réglages complets (people = personnes ajoutées pour cette vidéo seulement) ;
+ * sinon (page client) : people = toutes les personnes prévues (vidéo + équipes du dossier), sans e-mails ni liens.
+ */
+async function toVideo(env: Env, r: Row, forOwner = true, audience: Person[] = []) {
   return {
     access: (r.access as string) || 'public',
     accessCode: forOwner ? ((r.access_code as string) ?? null) : null,
     hasCode: !!r.access_code,
-    people: forOwner ? people : people.map((p) => ({ id: p.id, name: p.name, email: null, token: '' })),
+    people: forOwner ? peopleOf(r) : audience.map(publicPerson),
     id: r.id,
     title: r.title,
     description: r.description,
@@ -204,6 +240,20 @@ async function getSharedRow(env: Env, token: string) {
   return r
 }
 
+/** Toutes les personnes prévues pour une vidéo : ajoutées à la vidéo, équipe de son dossier, équipe de l'agence. */
+async function audienceOf(env: Env, video: Row): Promise<Person[]> {
+  const list = [...peopleOf(video)]
+  let folderId = (video.client_id as string) ?? null
+  for (let depth = 0; folderId && depth < 2; depth++) {
+    const c = await env.DB.prepare('SELECT parent_id, people FROM clients WHERE id = ?').bind(folderId).first<Row>()
+    if (!c) break
+    list.push(...peopleOf(c))
+    folderId = (c.parent_id as string) ?? null
+  }
+  const seen = new Set<string>()
+  return list.filter((p) => !seen.has(p.id) && seen.add(p.id))
+}
+
 /** Le dossier et ses sous-dossiers. */
 async function folderIds(env: Env, id: string) {
   const { results } = await env.DB.prepare('SELECT id FROM clients WHERE id = ? OR parent_id = ?').bind(id, id).all<Row>()
@@ -220,7 +270,7 @@ async function addComment(env: Env, video: Row, input: Row, byOwner: boolean, ow
   const text = String(input.text ?? '').trim().slice(0, 5000)
   let author = byOwner ? ownerName : me ? me.name : String(input.authorName ?? '').trim().slice(0, 80)
   // Page client : on commente sous l'un des profils prévus par le propriétaire, ou en « Anonyme ».
-  const people = peopleOf(video)
+  const people = byOwner || me ? [] : await audienceOf(env, video)
   if (!byOwner && !me && people.length && !people.some((p) => p.name === author)) author = 'Anonyme'
   if (!text || !author) throw new HttpError(400, 'Nom et commentaire requis')
   const parentId = (input.parentId as string) || null
@@ -262,7 +312,7 @@ async function grantFor(env: Env, token: string) {
 }
 
 async function checkShareAccess(req: Request, env: Env, video: Row): Promise<Person | null> {
-  const people = peopleOf(video)
+  const people = await audienceOf(env, video)
   const key = req.headers.get('x-share-key')
   const me = key ? people.find((p) => p.token && same(p.token, key)) : undefined
   if (me) return me
@@ -352,8 +402,8 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         }
       }
       return json({
-        video: await toVideo(env, video, false),
-        clients: clients.map(toClient),
+        video: await toVideo(env, video, false, await audienceOf(env, video)),
+        clients: clients.map((r) => toClient(r, false)),
         playbackUrl: await mediaUrl(env, video.id as string, 'video'),
         me: me ? { id: me.id, name: me.name } : null,
       })
@@ -399,21 +449,35 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
   // --- Tout le reste : propriétaire uniquement ------------------------------------------------
   await requireOwner(req, env)
 
+  // Photo de profil importée (déjà recadrée et réduite par l'application).
+  if (a === 'avatars' && b && method === 'PUT') {
+    if (!/^[\w-]{1,64}$/.test(b)) throw new HttpError(400, 'Identifiant invalide')
+    const image = await req.arrayBuffer()
+    if (!image.byteLength || image.byteLength > 1_500_000) throw new HttpError(413, 'Image trop grande')
+    await env.VIDEOS.put(`avatars/${b}.jpg`, image, { httpMetadata: { contentType: req.headers.get('content-type') || 'image/jpeg' } })
+    return json({ url: `/media/avatar/${b}?v=${Date.now()}` })
+  }
+
   if (a === 'clients') {
     if (!b && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM clients ORDER BY created_at').all<Row>()
-      return json(results.map(toClient))
+      return json(results.map((r) => toClient(r)))
     }
     if (!b && method === 'POST') {
       const { name, parentId } = await body<{ name: string; parentId?: string | null }>(req)
       const r = { id: uid(), name: String(name || 'Nouveau dossier').slice(0, 80), parent_id: parentId ?? null, created_at: now() }
       await env.DB.prepare('INSERT INTO clients (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)').bind(r.id, r.name, r.parent_id, r.created_at).run()
-      return json(toClient(r), 201)
+      return json(toClient({ ...r, people: '[]' }), 201)
     }
     if (b && method === 'PATCH') {
-      const { name } = await body<{ name: string }>(req)
-      await env.DB.prepare('UPDATE clients SET name = ? WHERE id = ?').bind(String(name).slice(0, 80), b).run()
-      return json(toClient(await env.DB.prepare('SELECT * FROM clients WHERE id = ?').bind(b).first<Row>() ?? {}))
+      const p = await body<{ name?: string; people?: unknown }>(req)
+      const row = await env.DB.prepare('SELECT * FROM clients WHERE id = ?').bind(b).first<Row>()
+      if (!row) throw new HttpError(404, 'Dossier introuvable')
+      if (typeof p.name === 'string') await env.DB.prepare('UPDATE clients SET name = ? WHERE id = ?').bind(p.name.slice(0, 80), b).run()
+      // Équipe du dossier : chaque personne garde son lien personnel.
+      if (Array.isArray(p.people))
+        await env.DB.prepare('UPDATE clients SET people = ? WHERE id = ?').bind(JSON.stringify(normalizePeople(p.people, peopleOf(row))), b).run()
+      return json(toClient((await env.DB.prepare('SELECT * FROM clients WHERE id = ?').bind(b).first<Row>())!))
     }
     if (b && method === 'DELETE') {
       const ids = await folderIds(env, b)
@@ -494,18 +558,8 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         }
         if (Array.isArray(p.people)) {
           // On garde le lien personnel de chaque personne existante ; les nouvelles en reçoivent un.
-          const before = peopleOf(video)
-          const people: Person[] = (p.people as Partial<Person>[])
-            .map((x) => ({
-              id: x.id && before.some((o) => o.id === x.id) ? x.id : uid(),
-              name: String(x.name ?? '').trim().slice(0, 60),
-              email: String(x.email ?? '').trim().slice(0, 200) || null,
-              token: before.find((o) => o.id === x.id)?.token ?? token12() + token12(),
-            }))
-            .filter((x) => x.name && x.name.toLowerCase() !== 'anonyme')
-            .slice(0, 50)
           sets.push('people = ?')
-          args.push(JSON.stringify(people))
+          args.push(JSON.stringify(normalizePeople(p.people, peopleOf(video))))
         }
         if (sets.length) await env.DB.prepare(`UPDATE videos SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`).bind(...args, now(), b).run()
         return json(await toVideo(env, await getVideoRow(env, b)))
@@ -631,6 +685,16 @@ export default {
     try {
       if (path[0] === 'api' || path[0] === 'media') await ensureSchema(env)
       if (path[0] === 'api') return cors(req, env, await api(req, env, path.slice(1)))
+      // Photos de profil : publiques (adresse impossible à deviner), gardées en cache par le navigateur.
+      if (path[0] === 'media' && path[1] === 'avatar' && path[2]) {
+        const obj = await env.VIDEOS.get(`avatars/${path[2].replace(/[^\w-]/g, '')}.jpg`)
+        if (!obj) return new Response('Introuvable', { status: 404 })
+        return noIndex(
+          new Response(obj.body, {
+            headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control': 'public, max-age=31536000, immutable' },
+          }),
+        )
+      }
       if (path[0] === 'media' && (path[1] === 'video' || path[1] === 'thumb') && path[2])
         return noIndex(cors(req, env, await serveMedia(req, env, path[1], path[2])))
       return noIndex(await env.ASSETS.fetch(req))

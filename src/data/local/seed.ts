@@ -5,7 +5,14 @@ const ago = (days: number, hours = 0) => new Date(Date.now() - (days * 24 + hour
 
 export function seed() {
   const clients: Client[] = [
-    { id: 'client-1', name: 'Elias Studio', parentId: null, createdAt: ago(60) },
+    {
+      id: 'client-1', name: 'Elias Studio', parentId: null, createdAt: ago(60),
+      people: [
+        { id: 'p-amandine', name: 'Amandine', email: null, token: 'amandine00000001', color: '#b400b4' },
+        { id: 'p-lissandre', name: 'Lissandre', email: null, token: 'lissandre0000002', color: null },
+        { id: 'p-axel', name: 'Axel', email: null, token: 'axel000000000003', color: '#daa520' },
+      ],
+    },
     { id: 'client-2', name: 'Maison Lune', parentId: null, createdAt: ago(59) },
     { id: 'client-3', name: 'Atelier Nord', parentId: null, createdAt: ago(58) },
     // Sous-dossier : un client d'Elias Studio (libellé « Elias Studio x Co-labs »).

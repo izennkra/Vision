@@ -38,6 +38,9 @@
 }
 .entry--login .entry__field::placeholder { color: var(--c-muted-3); }
 .entry--login .entry__field:focus { box-shadow: inset 0 0 0 1.5px var(--c-ink-soft); }
+.entry--login .entry__field { transition: background var(--t-fast) ease, box-shadow var(--t-fast) ease; }
+.entry--login .entry__field.is-ok { background: #d9ecd9; box-shadow: inset 0 0 0 1.5px var(--c-green); }
+.entry--login .entry__field.is-wrong { background: #fde0d8; box-shadow: inset 0 0 0 1.5px var(--c-orange); animation: code-shake 320ms ease; }
 .entry--login .entry__go { width: 89px; height: 89px; margin-top: 20px; }
 
 /* Code d'accès (capture : carte 383 × 371, cases 42 × 62, bouton rond 108 px) */
@@ -70,11 +73,13 @@
   color: var(--c-green);
   transition: background var(--t-fast) ease, box-shadow var(--t-fast) ease;
 }
-.code__box.is-filled { background: #d9ecd9; }
+.code__box.is-filled { color: var(--c-ink); }
 .code__box.is-focus { background: var(--c-white); box-shadow: inset 0 0 0 2px var(--c-ink); }
 .code__box.is-focus::after { content: ''; width: 1.5px; height: 26px; background: var(--c-ink); animation: code-caret 1s steps(1) infinite; }
 @keyframes code-caret { 50% { opacity: 0; } }
-.code.is-error .code__box { background: #fde0d8; color: var(--c-orange); box-shadow: none; }
+.code.is-success .code__box { background: #d9ecd9; color: var(--c-green); box-shadow: none; }
+.code.is-success .code__box::after, .code.is-error .code__box::after { display: none; }
+.code.is-error .code__box { background: #fde0d8; color: var(--c-orange); box-shadow: inset 0 0 0 1.5px var(--c-orange); }
 .code.is-error { animation: code-shake 320ms ease; }
 @keyframes code-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
 

@@ -1,7 +1,8 @@
 // Lien de partage client (étape 1 : simulé en local, étape 2 : vrai lien public).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { owner } from '../config'
-import { repo, type Person, type Video } from '../data'
+import { repo, type Client, type Person, type Video } from '../data'
+import { audienceOf } from './people'
 
 export const shareUrl = (token: string) => `${window.location.origin}/v/${token}`
 
@@ -9,7 +10,7 @@ export const shareUrl = (token: string) => `${window.location.origin}/v/${token}
 export const personalUrl = (video: Video, person: Person) => `${shareUrl(video.shareToken)}?p=${person.token}`
 
 /** Le lien direct n'est proposé qu'une fois la vidéo publiée et les personnes prévues. */
-export const linkReady = (video: Video) => video.status === 'published' && (video.people?.length ?? 0) > 0
+export const linkReady = (video: Video, clients: Client[]) => video.status === 'published' && audienceOf(video, clients).length > 0
 
 /** Code d'accès lisible : 6 caractères, sans 0/O ni 1/I pour éviter les confusions. */
 export function newAccessCode() {

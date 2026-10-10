@@ -4,9 +4,10 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
-import type { AppNotification, Client, Comment, ID, Page, Person, Transcript, Video, VideoChunk, View } from '../types'
+import type { AppNotification, Client, Comment, ID, Page, PersonInput, Transcript, Video, VideoChunk, View } from '../types'
 import { owner } from '../../config'
 import { demoTranscript, seed } from './seed'
+import { audienceOf, normalizePeople, publicPerson } from '../../lib/people'
 
 interface VisionsDB extends DBSchema {
   clients: { key: ID; value: Client }
@@ -133,6 +134,25 @@ export class LocalRepository implements Repository {
     return updated
   }
 
+  async setClientPeople(id: ID, people: PersonInput[]) {
+    const db = await this.dbp
+    const client = await db.get('clients', id)
+    if (!client) throw new Error('Dossier introuvable')
+    const updated = { ...client, people: normalizePeople(people, client.people ?? [], newId) }
+    await db.put('clients', updated)
+    return updated
+  }
+
+  /** Version locale : la photo est gardée telle quelle dans le navigateur. */
+  uploadAvatar(_personId: ID, image: Blob) {
+    return new Promise<string>((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(String(r.result))
+      r.onerror = () => reject(r.error)
+      r.readAsDataURL(image)
+    })
+  }
+
   async deleteClient(id: ID) {
     const db = await this.dbp
     const ids = withDescendants(id, await db.getAll('clients'))
@@ -194,7 +214,7 @@ export class LocalRepository implements Repository {
     const video = await db.getFromIndex('videos', 'byShareToken', token)
     if (!video || video.status !== 'published') return null
     // Même règles que le serveur : lien personnel, code déjà saisi, ou vidéo publique sans code.
-    const people = video.people ?? []
+    const people = audienceOf(video, await db.getAll('clients'))
     const me = key ? people.find((p) => p.token === key) : undefined
     const unlocked = readGrant(token)
     const access = video.access ?? 'public'
@@ -207,8 +227,9 @@ export class LocalRepository implements Repository {
       const parent = own.parentId ? await db.get('clients', own.parentId) : undefined
       if (parent) clients.push(parent)
     }
-    const visible: Video = { ...video, accessCode: null, hasCode: !!video.accessCode, people: people.map((p) => ({ ...p, email: null, token: '' })) }
-    return { video: visible, clients, me: me ? { id: me.id, name: me.name } : null }
+    const visible: Video = { ...video, accessCode: null, hasCode: !!video.accessCode, people: people.map(publicPerson) }
+    const shown = clients.map((c) => ({ ...c, people: (c.people ?? []).map(publicPerson) }))
+    return { video: visible, clients: shown, me: me ? { id: me.id, name: me.name } : null }
   }
 
   async unlockShare(token: string, code: string) {
@@ -229,15 +250,7 @@ export class LocalRepository implements Repository {
       if (code && code.length !== 6) throw new Error('Le code doit faire 6 caractères')
       updated.accessCode = code || null
     }
-    if (peopleInput) {
-      const before = video.people ?? []
-      updated.people = peopleInput
-        .map((x): Person => {
-          const old = x.id ? before.find((o) => o.id === x.id) : undefined
-          return { id: old?.id ?? newId(), name: x.name.trim(), email: x.email?.trim() || null, token: old?.token ?? newId().replace(/-/g, '') }
-        })
-        .filter((x) => x.name && x.name.toLowerCase() !== 'anonyme')
-    }
+    if (peopleInput) updated.people = normalizePeople(peopleInput, video.people ?? [], newId)
     await db.put('videos', updated)
     return updated
   }

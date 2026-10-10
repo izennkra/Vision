@@ -11,7 +11,6 @@ import { useContextMenu, type MenuItem } from '../components/ContextMenu'
 import { IconCamera, IconFilter, IconGrip, IconMic, IconPause, IconPlay, IconRestart, IconWindow } from '../components/icons'
 import { useToast } from '../components/Toast'
 import { clock } from '../lib/format'
-import { downloadVideo } from '../lib/share'
 import * as sounds from '../recorder/sounds'
 import { cameraFilters, filterCss } from '../recorder/filters'
 import { RecordingSession, type Surface } from '../recorder/session'
@@ -84,10 +83,9 @@ export default function Recorder() {
     session.current = null
     if (!video) return setState('idle')
     setSaved(true)
-    await downloadVideo(video) // copie sur le Mac (dossier Téléchargements)
     // Laisse l'animation de fin se jouer en entier avant d'ouvrir la vidéo.
     await wait(Math.max(0, 1600 - (performance.now() - started)))
-    toast('Vidéo enregistrée et téléchargée')
+    toast('Vidéo enregistrée')
     navigate(`/video/${video.id}`)
   }, [state, pip, navigate, toast])
 

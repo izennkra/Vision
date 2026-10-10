@@ -15,6 +15,8 @@ import { downloadVideo, linkReady, shareUrl, useCopied } from '../lib/share'
 import { folderTree, rootOf } from '../lib/clients'
 import { useToast } from '../components/Toast'
 import { NotificationBell } from '../components/NotificationBell'
+import { TeamPanel } from '../components/TeamPanel'
+import { Initials } from '../components/Initials'
 import './dashboard.css'
 
 const PAGE = 24
@@ -35,6 +37,7 @@ export default function Dashboard() {
   const [next, setNext] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [reload, setReload] = useState(0)
+  const [teamOf, setTeamOf] = useState<ID | null>(null)
   const [sentinel, atEnd] = useInView<HTMLDivElement>('600px')
 
   const refreshClients = useCallback(() => repo.listClients().then(setClients), [])
@@ -73,6 +76,8 @@ export default function Dashboard() {
   }, [atEnd, loadMore])
 
   const selectClient = (id: string | null) => setParams(id ? { client: id } : {})
+  const selected = clients.find((c) => c.id === clientId) ?? null
+  const team = clients.find((c) => c.id === teamOf) ?? null
 
   // --- Dossiers clients -------------------------------------------------------
   const createClient = async (parentId: ID | null = null) => {
@@ -95,6 +100,7 @@ export default function Dashboard() {
     openMenu(e, [
       { label: 'Ouvrir', onSelect: () => selectClient(c.id) },
       { label: 'Renommer', onSelect: () => setRenamingClient(c.id) },
+      { label: 'Équipe…', onSelect: () => setTeamOf(c.id) },
       'separator',
       // Un seul niveau de sous-dossier : une agence et ses clients (« Elias Studio x Co-labs »).
       ...(c.parentId ? [] : [{ label: `Nouveau client de ${c.name}`, onSelect: () => createClient(c.id) }]),
@@ -214,7 +220,19 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-          <span className="dash__count">{plural(total, 'Vidéo', 'Vidéos')}</span>
+          <div className="dash__bar-end">
+            {selected && (
+              <button className="dash__team ds-hover" onClick={() => setTeamOf(selected.id)} title={`Équipe ${selected.name} : qui regarde et commente`}>
+                {(selected.people ?? []).length ? (
+                  <span className="dash__team-faces">
+                    {(selected.people ?? []).slice(0, 4).map((p) => <Initials key={p.id} name={p.name} person={p} />)}
+                  </span>
+                ) : null}
+                {(selected.people ?? []).length ? 'Équipe' : 'Ajouter l’équipe'}
+              </button>
+            )}
+            <span className="dash__count">{plural(total, 'Vidéo', 'Vidéos')}</span>
+          </div>
         </div>
 
         {!loading && videos.length === 0 && (
@@ -242,6 +260,15 @@ export default function Dashboard() {
         </div>
         <div ref={sentinel} className="dash__sentinel" />
       </main>
+
+      {team && (
+        <TeamPanel
+          client={team}
+          clients={clients}
+          onChange={(c) => setClients((list) => list.map((x) => (x.id === c.id ? c : x)))}
+          onClose={() => setTeamOf(null)}
+        />
+      )}
     </div>
   )
 }
@@ -266,7 +293,7 @@ function VideoCard({ video, showClient, clients, onOpen, onChange, onMove, onDel
   const [renaming, setRenaming] = useState(false)
   const [dragging, setDragging] = useState(false)
 
-  const ready = linkReady(video)
+  const ready = linkReady(video, clients)
   // Lien direct seulement si la vidéo est publiée et les personnes prévues ; sinon on ouvre le panneau « Partager ».
   const share = async () => {
     if (!ready) return navigate(`/video/${video.id}?partage=1`)

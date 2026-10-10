@@ -7,6 +7,8 @@ import { owner } from '../config'
 import { repo, type Client, type Comment, type ID, type Transcript, type Video } from '../data'
 import type { SharedResult } from '../data/repository'
 import { ANONYMOUS, Comments, initialsOf } from '../components/Comments'
+import { PeopleContext } from '../components/Initials'
+import { audienceOf } from '../lib/people'
 import { InlineEdit } from '../components/InlineEdit'
 import { Logo } from '../components/Logo'
 import { Player, type PlayerHandle } from '../components/Player'
@@ -172,7 +174,9 @@ export default function VideoPage({ mode }: { mode: Mode }) {
 
   const published = video.status === 'published'
   // Côté propriétaire, le lien direct reste grisé tant que les personnes ne sont pas prévues.
-  const ready = !isOwner || linkReady(video)
+  const ready = !isOwner || linkReady(video, clients)
+  // Personnes prévues : côté client, déjà calculées par le serveur ; côté propriétaire, vidéo + équipes des dossiers.
+  const audience = isOwner ? audienceOf(video, clients) : video.people ?? []
 
   const copyLink = async () => {
     if (!ready) return setPanel(true)
@@ -185,7 +189,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     setLeaving(true)
     const [v] = await Promise.all([update({ status: 'published' }), new Promise((r) => setTimeout(r, 220))])
     setLeaving(false)
-    if (!v.people?.length) setTimeout(() => setPanel(true), 260)
+    if (!audienceOf(v, clients).length) setTimeout(() => setPanel(true), 260)
   }
 
   const clientShare = async () => {
@@ -212,6 +216,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   }
 
   return (
+    <PeopleContext.Provider value={audience}>
     <div className="vp">
       <main className="vp__main">
         <header className="vp__top">
@@ -361,6 +366,8 @@ export default function VideoPage({ mode }: { mode: Mode }) {
       {panel && isOwner && (
         <SharePanel
           video={video}
+          clients={clients}
+          onClientChange={(c) => setClients((list) => list.map((x) => (x.id === c.id ? c : x)))}
           onChange={update}
           onClose={() => setPanel(false)}
           onDelete={async () => {
@@ -370,5 +377,6 @@ export default function VideoPage({ mode }: { mode: Mode }) {
         />
       )}
     </div>
+    </PeopleContext.Provider>
   )
 }

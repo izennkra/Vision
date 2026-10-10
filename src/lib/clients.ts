@@ -9,6 +9,12 @@ export function clientLabel(client: Client | null | undefined, clients: Client[]
   return `${parent ? parent.name : owner.firstName} x ${client.name}`
 }
 
+/** Nom d'équipe : « Elias Studio », ou pour un sous-dossier « Elias Studio x Co-labs ». */
+export function teamLabel(client: Client, clients: Client[]) {
+  const parent = client.parentId ? clients.find((c) => c.id === client.parentId) : null
+  return parent ? `${parent.name} x ${client.name}` : client.name
+}
+
 /** Arborescence aplatie : chaque dossier suivi de ses sous-dossiers, avec leur profondeur. */
 export function folderTree(clients: Client[]): { client: Client; depth: number }[] {
   const out: { client: Client; depth: number }[] = []
