@@ -487,6 +487,13 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
   throw new HttpError(404, 'Introuvable')
 }
 
+/** Outil privé : demande aux moteurs de recherche de ne rien indexer (pages, vidéos, vignettes). */
+function noIndex(res: Response) {
+  const r = new Response(res.body, res)
+  r.headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
+  return r
+}
+
 function cors(req: Request, env: Env, res: Response) {
   const origin = req.headers.get('origin')
   if (!origin || !env.ALLOWED_ORIGIN || origin !== env.ALLOWED_ORIGIN) return res
@@ -508,8 +515,8 @@ export default {
       if (path[0] === 'api' || path[0] === 'media') await ensureSchema(env)
       if (path[0] === 'api') return cors(req, env, await api(req, env, path.slice(1)))
       if (path[0] === 'media' && (path[1] === 'video' || path[1] === 'thumb') && path[2])
-        return cors(req, env, await serveMedia(req, env, path[1], path[2]))
-      return env.ASSETS.fetch(req)
+        return noIndex(cors(req, env, await serveMedia(req, env, path[1], path[2])))
+      return noIndex(await env.ASSETS.fetch(req))
     } catch (e) {
       if (e instanceof HttpError) return cors(req, env, json({ error: e.message }, e.status))
       console.error(e)

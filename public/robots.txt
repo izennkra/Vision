@@ -1,0 +1,3 @@
+# Visions est un outil privé : aucun moteur de recherche ne doit l'indexer.
+User-agent: *
+Disallow: /
