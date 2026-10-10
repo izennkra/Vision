@@ -6,6 +6,9 @@
   "main": "worker/src/index.ts",
   "compatibility_date": "2025-09-01",
   "observability": { "enabled": true },
+  // Adresse publique visions.izenn-kra.workers.dev toujours active (et adresses de prévisualisation).
+  "workers_dev": true,
+  "preview_urls": true,
   // L'application (dossier dist, construite avec « npm run build:cloud ») ; les routes /api et /media
   // passent par le serveur, toutes les autres adresses renvoient l'application.
   "assets": {
