@@ -54,7 +54,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   const res = await fetch(`${apiBase}/api/${path}`, { ...init, headers, body: bodyInit })
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    const message = typeof data.error === 'string' ? data.error : null
+    const detail = typeof data.detail === 'string' ? ` (${data.detail})` : ''
+    const message = typeof data.error === 'string' ? data.error + detail : null
     if (res.status === 401 && path !== 'login' && !path.startsWith('share/')) {
       saveSession(null)
       if (!location.pathname.startsWith('/v/')) location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`)

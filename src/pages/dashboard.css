@@ -140,3 +140,9 @@
   .dash__grid { grid-template-columns: 1fr; }
   .owner__picker { right: -4px; }
 }
+
+/* Erreur de chargement : message clair plutôt qu'une page vide */
+.dash__error { margin-top: 24px; padding: 16px 18px; border-radius: 10px; background: #fde0d8; color: var(--c-ink-soft); font-size: var(--fs-ui); line-height: 18px; }
+.dash__error p { margin: 0; }
+.dash__error-detail { margin-top: 6px !important; font-size: var(--fs-meta); color: #b8321a; }
+.dash__error-retry { margin-top: 10px; height: 28px; padding: 0 14px; border-radius: var(--r-pill); background: var(--c-ink-soft); color: var(--c-white); font-size: var(--fs-meta); }

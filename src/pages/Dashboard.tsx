@@ -45,7 +45,11 @@ export default function Dashboard() {
   const [folderDrop, setFolderDrop] = useState<{ id: ID; after: boolean } | null>(null)
   const [sentinel, atEnd] = useInView<HTMLDivElement>('600px')
 
-  const refreshClients = useCallback(() => repo.listClients().then(setClients), [])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const refreshClients = useCallback(
+    () => repo.listClients().then(setClients).catch((e: unknown) => setLoadError(e instanceof Error ? e.message : 'Serveur injoignable')),
+    [],
+  )
   // L'enregistreur est chargé à part : on le prépare en avance pour que « Nouvelle vidéo » s'ouvre aussitôt.
   useEffect(() => {
     const t = window.setTimeout(() => void import('./Recorder'), 1200)
@@ -59,13 +63,22 @@ export default function Dashboard() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    repo.listVideos({ clientId, search, limit: PAGE }).then((page) => {
-      if (cancelled) return
-      setVideos(page.items)
-      setTotal(page.total)
-      setNext(page.next)
-      setLoading(false)
-    })
+    repo.listVideos({ clientId, search, limit: PAGE }).then(
+      (page) => {
+        if (cancelled) return
+        setVideos(page.items)
+        setTotal(page.total)
+        setNext(page.next)
+        setLoading(false)
+        setLoadError(null)
+      },
+      (e: unknown) => {
+        if (cancelled) return
+        // Plus jamais une page vide sans explication : on montre ce que répond le serveur.
+        setLoading(false)
+        setLoadError(e instanceof Error ? e.message : 'Serveur injoignable')
+      },
+    )
     return () => {
       cancelled = true
     }
@@ -286,7 +299,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {!loading && videos.length === 0 && (
+        {loadError && (
+          <div className="dash__error" role="alert">
+            <p>Impossible de charger tes vidéos pour le moment. Elles ne sont pas perdues : c’est la connexion au serveur qui échoue.</p>
+            <p className="dash__error-detail">{loadError}</p>
+            <button className="ds-hover dash__error-retry" onClick={() => (setLoadError(null), refreshClients(), setReload((r) => r + 1))}>Réessayer</button>
+          </div>
+        )}
+        {!loading && !loadError && videos.length === 0 && (
           <p className="dash__empty">
             {search.trim()
               ? `Aucune vidéo ne correspond à « ${search.trim()} ».`

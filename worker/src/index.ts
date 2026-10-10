@@ -47,12 +47,15 @@ const UPGRADES = [
 let schemaReady: Promise<unknown> | null = null
 function ensureSchema(env: Env) {
   schemaReady ??= (async () => {
-    await env.DB.batch(SCHEMA.map((sql) => env.DB.prepare(sql)))
+    try {
+      await env.DB.batch(SCHEMA.map((sql) => env.DB.prepare(sql)))
+    } catch (e) {
+      // Une instruction refusée ne doit jamais bloquer toute l'application : on les reprend une par une.
+      console.error('schéma (lot)', e)
+      for (const sql of SCHEMA) await env.DB.prepare(sql).run().catch((err) => console.error('schéma', sql.slice(0, 60), err))
+    }
     for (const sql of UPGRADES) await env.DB.prepare(sql).run().catch(() => {}) // « duplicate column » : déjà fait
-  })().catch((e) => {
-    schemaReady = null
-    throw e
-  })
+  })()
   return schemaReady
 }
 
@@ -518,7 +521,10 @@ async function api(req: Request, env: Env, path: string[], ctx: ExecutionContext
       return json({ ok: true })
     }
     if (!b && method === 'GET') {
-      const { results } = await env.DB.prepare('SELECT * FROM clients ORDER BY position IS NULL, position, created_at').all<Row>()
+      // Ordre choisi par glisser-déposer ; à défaut (colonne absente), ordre de création.
+      const { results } = await env.DB.prepare('SELECT * FROM clients ORDER BY position IS NULL, position, created_at')
+        .all<Row>()
+        .catch(() => env.DB.prepare('SELECT * FROM clients ORDER BY created_at').all<Row>())
       return json(results.map((r) => toClient(r)))
     }
     if (!b && method === 'POST') {
@@ -793,7 +799,8 @@ export default {
     } catch (e) {
       if (e instanceof HttpError) return cors(req, env, json({ error: e.message, ...e.data }, e.status))
       console.error(e)
-      return cors(req, env, json({ error: 'Erreur serveur' }, 500))
+      // Le détail aide à comprendre une panne depuis l'application (jamais de secret dans ces messages).
+      return cors(req, env, json({ error: 'Erreur serveur', detail: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300) }, 500))
     }
   },
 } satisfies ExportedHandler<Env>
