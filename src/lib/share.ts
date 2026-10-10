@@ -27,18 +27,17 @@ export function useCopied(delay = 1400) {
   return [copied, flash] as const
 }
 
-/** Télécharge le fichier vidéo enregistré (assemblé à partir de ses morceaux). */
+/** Télécharge le fichier vidéo sur le Mac (dossier Téléchargements). */
 export async function downloadVideo(video: Video) {
-  const file = await repo.getVideoFile(video.id)
-  const href = file ? URL.createObjectURL(file) : video.sampleUrl
+  const href = await repo.getDownloadUrl(video.id)
   if (!href) return false
-  const ext = (file?.type ?? 'video/webm').includes('mp4') ? 'mp4' : 'webm'
+  const ext = video.mimeType.includes('mp4') ? 'mp4' : 'webm'
   const a = document.createElement('a')
   a.href = href
   a.download = `${video.title.replace(/[\\/:*?"<>|]/g, '-')}.${ext}`
   document.body.appendChild(a)
   a.click()
   a.remove()
-  if (file) setTimeout(() => URL.revokeObjectURL(href), 60_000)
+  if (href.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(href), 60_000)
   return true
 }

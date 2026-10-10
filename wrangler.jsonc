@@ -1,0 +1,22 @@
+// Déploiement Cloudflare de Visions : application + API + stockage.
+// Les deux identifiants « REMPLACER… » sont donnés par les commandes du guide (DEPLOIEMENT.md).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "visions",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "observability": { "enabled": true },
+  // L'application (dossier dist, construite avec « npm run build:cloud ») ; les routes /api et /media
+  // passent par le serveur, toutes les autres adresses renvoient l'application.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/media/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "visions", "database_id": "REMPLACER-PAR-L-ID-DE-LA-BASE-D1", "migrations_dir": "worker/migrations" }
+  ],
+  "r2_buckets": [{ "binding": "VIDEOS", "bucket_name": "visions-videos" }],
+  "vars": { "OWNER_NAME": "Izenn Kra" }
+}

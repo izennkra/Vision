@@ -17,6 +17,7 @@ export {
   Check as IconCheck,
   Plus as IconPlus,
   CornersOut as IconFullscreen,
+  Bell as IconBell,
 } from '@phosphor-icons/react'
 
 type P = { size?: number; color?: string }

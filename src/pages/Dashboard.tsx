@@ -14,6 +14,7 @@ import { durationLabel, plural, shortDate, timeAgo } from '../lib/format'
 import { downloadVideo, shareVideo, useCopied } from '../lib/share'
 import { folderTree, rootOf } from '../lib/clients'
 import { useToast } from '../components/Toast'
+import { NotificationBell } from '../components/NotificationBell'
 import './dashboard.css'
 
 const PAGE = 24
@@ -137,7 +138,10 @@ export default function Dashboard() {
   return (
     <div className="dash">
       <div className="dash__logo"><Logo /></div>
-      <img className="ds-avatar dash__avatar" src={owner.avatarUrl} alt={owner.fullName} />
+      <div className="dash__top-right">
+        <NotificationBell />
+        <img className="ds-avatar dash__avatar" src={owner.avatarUrl} alt={owner.fullName} />
+      </div>
 
       <aside className="dash__side">
         <button className="ds-btn-primary" onClick={() => navigate(clientId ? `/record?client=${clientId}` : '/record')}>

@@ -1,0 +1,14 @@
+.login { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login__box { display: flex; flex-direction: column; align-items: center; width: 260px; }
+.login__title { margin: 28px 0 22px; font-size: var(--fs-title); font-weight: 400; color: var(--c-ink-soft); }
+.login__field {
+  width: 100%;
+  height: var(--dash-search-h);
+  padding: 0 14px;
+  background: var(--c-surface-strong);
+  font-size: var(--fs-ui);
+  color: var(--c-ink);
+}
+.login__field::placeholder { color: var(--c-muted-3); }
+.login__go { justify-content: center; margin-top: 10px; }
+.login__error { min-height: 16px; margin: 12px 0 0; font-size: var(--fs-meta); color: var(--c-orange); text-align: center; }

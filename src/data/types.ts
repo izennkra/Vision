@@ -88,6 +88,20 @@ export interface View {
   watchedRatio: number
 }
 
+/** Notification pour le propriétaire : quelqu'un a regardé ou commenté une vidéo. */
+export interface AppNotification {
+  id: ID
+  type: 'view' | 'comment'
+  videoId: ID
+  videoTitle: string
+  /** Nom de la personne (« Anonyme » si elle ne l'a pas donné). */
+  actor: string
+  /** Début du commentaire. */
+  text: string | null
+  createdAt: ISODate
+  read: boolean
+}
+
 /** Page de résultats, pour ne jamais charger toutes les vidéos d'un coup. */
 export interface Page<T> {
   items: T[]

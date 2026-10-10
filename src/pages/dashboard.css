@@ -2,13 +2,16 @@
 .dash { position: relative; min-height: 100vh; }
 
 .dash__logo { position: absolute; left: var(--dash-logo-x); top: var(--dash-top); }
-.dash__avatar {
+.dash__top-right {
   position: absolute;
   right: var(--dash-right);
   top: var(--dash-top);
-  width: var(--dash-avatar);
-  height: var(--dash-avatar);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
+.dash__avatar { width: var(--dash-avatar); height: var(--dash-avatar); }
 
 /* Barre latérale fixe : reste visible quand la grille défile. */
 .dash__side {

@@ -4,7 +4,7 @@
 // Étape 2 : implémentation Cloudflare (R2 pour les vidéos, base de données pour le reste)
 // qui respecte la même interface — les écrans ne changent pas.
 
-import type { Client, Comment, ID, Page, Video, View } from './types'
+import type { AppNotification, Client, Comment, ID, Page, Video, View } from './types'
 
 export interface VideoQuery {
   /** Dossier : inclut les vidéos de ses sous-dossiers. */
@@ -26,7 +26,8 @@ export interface Repository {
   // Vidéos (métadonnées seulement, jamais le fichier vidéo)
   listVideos(query: VideoQuery): Promise<Page<Video>>
   getVideo(id: ID): Promise<Video | null>
-  getVideoByShareToken(token: string): Promise<Video | null>
+  /** Page client : la vidéo publiée et son dossier (avec l'agence éventuelle). */
+  getShared(token: string): Promise<{ video: Video; clients: Client[] } | null>
   updateVideo(id: ID, patch: Partial<Pick<Video, 'title' | 'description' | 'clientId' | 'status'>>): Promise<Video>
   deleteVideo(id: ID): Promise<void>
 
@@ -37,8 +38,8 @@ export interface Repository {
   appendChunk(videoId: ID, index: number, data: Blob): Promise<void>
   /** Relit un morceau déjà enregistré. */
   getChunk(videoId: ID, index: number): Promise<Blob | null>
-  /** Fichier complet (téléchargement sur le Mac). */
-  getVideoFile(videoId: ID): Promise<Blob | null>
+  /** Adresse de téléchargement du fichier complet (copie sur le Mac). */
+  getDownloadUrl(videoId: ID): Promise<string | null>
   finishRecording(videoId: ID, info: { duration: number; thumbnail: Blob | null; width?: number; height?: number }): Promise<Video>
 
   // Lecture
@@ -58,4 +59,9 @@ export interface Repository {
   listViews(videoId: ID): Promise<View[]>
   /** Donne un nom à toutes les vues d'un même navigateur (quand la personne se présente). */
   setViewerName(viewerId: string, name: string): Promise<void>
+
+  // Notifications (propriétaire)
+  listNotifications(): Promise<{ items: AppNotification[]; unread: number }>
+  /** Marque comme lues (toutes si `ids` est absent). */
+  markNotificationsRead(ids?: ID[]): Promise<void>
 }

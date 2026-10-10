@@ -4,7 +4,8 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { Repository, VideoQuery } from '../repository'
-import type { Client, Comment, ID, Page, Video, VideoChunk, View } from '../types'
+import type { AppNotification, Client, Comment, ID, Page, Video, VideoChunk, View } from '../types'
+import { owner } from '../../config'
 import { seed } from './seed'
 
 interface VisionsDB extends DBSchema {
@@ -15,6 +16,7 @@ interface VisionsDB extends DBSchema {
   comments: { key: ID; value: Comment; indexes: { byVideo: ID } }
   views: { key: ID; value: View; indexes: { byVideo: ID; byViewer: string } }
   meta: { key: string; value: { key: string; value: unknown } }
+  notifications: { key: ID; value: AppNotification; indexes: { byCreatedAt: string } }
 }
 
 const DB_NAME = 'visions'
@@ -56,7 +58,7 @@ export class LocalRepository implements Repository {
   private playbackUrls = new Map<ID, string>()
 
   constructor() {
-    this.dbp = openDB<VisionsDB>(DB_NAME, 2, {
+    this.dbp = openDB<VisionsDB>(DB_NAME, 3, {
       async upgrade(db, oldVersion, _newVersion, tx) {
         if (oldVersion < 1) createStores(db)
         // v2 : sous-dossiers (parentId) et regroupement des vues par navigateur (viewerId).
@@ -75,6 +77,8 @@ export class LocalRepository implements Repository {
           }
           tx.objectStore('views').createIndex('byViewer', 'viewerId')
         }
+        // v3 : notifications (vues et commentaires des clients).
+        if (oldVersion < 3) db.createObjectStore('notifications', { keyPath: 'id' }).createIndex('byCreatedAt', 'createdAt')
       },
     }).then(async (db) => {
       // Données de test, insérées une seule fois.
@@ -169,8 +173,18 @@ export class LocalRepository implements Repository {
     return (await (await this.dbp).get('videos', id)) ?? null
   }
 
-  async getVideoByShareToken(token: string) {
-    return (await (await this.dbp).getFromIndex('videos', 'byShareToken', token)) ?? null
+  async getShared(token: string) {
+    const db = await this.dbp
+    const video = await db.getFromIndex('videos', 'byShareToken', token)
+    if (!video || video.status !== 'published') return null
+    const clients: Client[] = []
+    const own = video.clientId ? await db.get('clients', video.clientId) : undefined
+    if (own) {
+      clients.push(own)
+      const parent = own.parentId ? await db.get('clients', own.parentId) : undefined
+      if (parent) clients.push(parent)
+    }
+    return { video, clients }
   }
 
   async updateVideo(id: ID, patch: Partial<Pick<Video, 'title' | 'description' | 'clientId' | 'status'>>) {
@@ -273,6 +287,12 @@ export class LocalRepository implements Repository {
     return (await (await this.dbp).get('thumbnails', key))?.data ?? null
   }
 
+  async getDownloadUrl(videoId: ID) {
+    const file = await this.getVideoFile(videoId)
+    if (file) return URL.createObjectURL(file)
+    return (await this.getVideo(videoId))?.sampleUrl ?? null
+  }
+
   async getPlaybackUrl(videoId: ID) {
     const cached = this.playbackUrls.get(videoId)
     if (cached) return cached
@@ -298,10 +318,12 @@ export class LocalRepository implements Repository {
   async addComment(input: Omit<Comment, 'id' | 'createdAt'>) {
     const db = await this.dbp
     const comment: Comment = { ...input, id: newId(), createdAt: now() }
-    const tx = db.transaction(['comments', 'videos'], 'readwrite')
+    const tx = db.transaction(['comments', 'videos', 'notifications'], 'readwrite')
     tx.objectStore('comments').put(comment)
     const video = await tx.objectStore('videos').get(input.videoId)
     if (video) tx.objectStore('videos').put({ ...video, commentCount: video.commentCount + 1 })
+    if (video && input.authorName !== owner.fullName)
+      tx.objectStore('notifications').put(this.notification('comment', video, input.authorName, input.text.slice(0, 140)))
     await tx.done
     return comment
   }
@@ -323,10 +345,13 @@ export class LocalRepository implements Repository {
   async recordView(input: Omit<View, 'id'>) {
     const db = await this.dbp
     const view: View = { ...input, id: newId() }
-    const tx = db.transaction(['views', 'videos'], 'readwrite')
+    const tx = db.transaction(['views', 'videos', 'notifications'], 'readwrite')
     tx.objectStore('views').put(view)
     const video = await tx.objectStore('videos').get(input.videoId)
-    if (video) tx.objectStore('videos').put({ ...video, viewCount: video.viewCount + 1 })
+    if (video) {
+      tx.objectStore('videos').put({ ...video, viewCount: video.viewCount + 1 })
+      tx.objectStore('notifications').put(this.notification('view', video, input.viewer))
+    }
     await tx.done
     return view
   }
@@ -340,6 +365,23 @@ export class LocalRepository implements Repository {
   async listViews(videoId: ID) {
     const views = await (await this.dbp).getAllFromIndex('views', 'byVideo', videoId)
     return views.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+  }
+
+  private notification(type: AppNotification['type'], video: Video, actor: string, text: string | null = null): AppNotification {
+    return { id: newId(), type, videoId: video.id, videoTitle: video.title, actor, text, createdAt: now(), read: false }
+  }
+
+  async listNotifications() {
+    const all = await (await this.dbp).getAllFromIndex('notifications', 'byCreatedAt')
+    const items = all.reverse().slice(0, 50)
+    return { items, unread: all.filter((n) => !n.read).length }
+  }
+
+  async markNotificationsRead(ids?: ID[]) {
+    const db = await this.dbp
+    const tx = db.transaction('notifications', 'readwrite')
+    for (const n of await tx.store.getAll()) if (!n.read && (!ids || ids.includes(n.id))) await tx.store.put({ ...n, read: true })
+    await tx.done
   }
 
   async setViewerName(viewerId: string, name: string) {

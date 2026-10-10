@@ -46,12 +46,19 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     let cancelled = false
     let posterUrl: string | null = null
     ;(async () => {
-      const v = isOwner ? await repo.getVideo(id!) : await repo.getVideoByShareToken(token!)
+      let v: Video | null
+      let all: Client[]
+      if (isOwner) {
+        ;[v, all] = await Promise.all([repo.getVideo(id!), repo.listClients()])
+      } else {
+        const shared = await repo.getShared(token!)
+        v = shared?.video ?? null
+        all = shared?.clients ?? []
+      }
       if (cancelled) return
-      if (!v || (!isOwner && v.status !== 'published')) return setVideo(null)
+      if (!v) return setVideo(null)
       setVideo(v)
-      const [all, list, url, thumb] = await Promise.all([
-        repo.listClients(),
+      const [list, url, thumb] = await Promise.all([
         repo.listComments(v.id),
         repo.getPlaybackUrl(v.id),
         v.thumbnailKey ? repo.getThumbnail(v.thumbnailKey) : null,
