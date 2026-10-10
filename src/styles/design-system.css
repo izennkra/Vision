@@ -75,6 +75,7 @@
   --o-hover: 0.7;      /* opacité au survol */
   --o-disabled: 0.35;
   --r-menu: 10px;      /* menu contextuel (clic droit) */
+  --r-player: 20px;    /* coins arrondis du lecteur vidéo */
 
   /* --- Dimensions (frame de référence 1440 px) --------------------------- */
   /* Logo et avatar */
@@ -610,3 +611,18 @@ button { cursor: pointer; }
 .bell__quote { font-size: var(--fs-meta); color: var(--c-muted-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bell__time { font-size: var(--fs-small); color: var(--c-muted-2); }
 .bell__desktop { display: block; width: 100%; margin-top: 6px; padding: 10px 8px 4px; border-top: 1px solid var(--c-bg); font-size: var(--fs-meta); color: var(--c-green); text-align: left; }
+
+
+/* Centrage optique : PP Neue Montreal a une ascendante plus haute que sa descendante, le texte des boutons
+   paraissait remonté d'environ 1 px. Un léger retrait en haut (≈ 0,13 em, soit la moitié en décalage dans
+   les boutons de hauteur fixe) recentre les majuscules et les chiffres. Mesuré sur chaque bouton. */
+:root { --optical: 0.13em; }
+/* « html » devant : passe avant les « padding » raccourcis des feuilles de style des pages. */
+html :is(.ds-btn-primary, .ds-nav-item, .ds-action, .ds-chip, .ds-toast) { padding-top: var(--optical); }
+html .ds-option { padding-top: 1.8px; }
+html .ds-tab { padding-top: 2.8px; }
+html :is(.ds-timer, .ds-stats) { padding-top: 2.2px; }
+html .dash__team { padding-top: 2.8px; }
+html :is(.ds-menu__item, .sp__primary, .sp__segment button, .entry__go, .tr__pill, .dash__team, .vp__tip, .who__item, .player__menu-item) {
+  padding-top: var(--optical);
+}

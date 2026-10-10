@@ -18,7 +18,7 @@
 .rec__panel.is-hidden { opacity: 0; pointer-events: none; }
 .rec__panel .ds-option svg { flex: none; }
 .ds-option.is-off { color: var(--c-muted-3); }
-.rec__go { width: var(--rec-go); height: var(--rec-go); }
+.rec__go { width: var(--rec-go); height: var(--rec-go); padding-top: 1.8px; /* centrage optique */ }
 .rec__note { margin: 0; font-size: var(--fs-tab); color: var(--c-muted-1); text-align: center; }
 
 /* Barre de contrôle flottante, à gauche, centrée verticalement par défaut */
