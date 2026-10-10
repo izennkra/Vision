@@ -158,6 +158,25 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     }
   }, [missingQualities, job, videoId, startQualities])
 
+  // Résumé automatique : écrit par le serveur à la fin de la transcription ; on recharge la description quand il arrive.
+  const summaryWaiting =
+    !!video && !video.description?.trim() && cloud && video.summaryState !== 'done' && video.summaryState !== 'skipped' && video.summaryState !== 'error' &&
+    (transcript?.status === 'pending' || (transcript?.status === 'ready' && transcript.cues.length > 0))
+  useEffect(() => {
+    if (!summaryWaiting || !videoId || transcript?.status !== 'ready') return
+    let tries = 0
+    const timer = window.setInterval(async () => {
+      tries++
+      const fresh = isOwner ? await repo.getVideo(videoId) : (await repo.getShared(token!, null).then((r) => (r && 'video' in r ? r.video : null)))
+      if (fresh && (fresh.description?.trim() || ['done', 'skipped', 'error'].includes(fresh.summaryState ?? ''))) {
+        setVideo((v) => (v ? { ...v, description: fresh.description, summaryState: fresh.summaryState } : v))
+        window.clearInterval(timer)
+      }
+      if (tries > 30) window.clearInterval(timer)
+    }, 4000)
+    return () => window.clearInterval(timer)
+  }, [summaryWaiting, videoId, transcript?.status, isOwner, token])
+
   const update = useCallback(
     async (patch: Parameters<typeof repo.updateVideo>[1]) => {
       const v = await repo.updateVideo(video!.id, patch)
@@ -323,9 +342,12 @@ export default function VideoPage({ mode }: { mode: Mode }) {
             />
           </div>
 
-          {(isOwner || video.description) && (
+          {(isOwner || video.description || summaryWaiting) && (
             <div className="vp__desc">
               <div className="vp__desc-label"><IconInfo />Description</div>
+              {summaryWaiting ? (
+                <p className="vp__desc-text vp__desc-pending">Le résumé de la vidéo s’écrit ici automatiquement, à la fin de la transcription…</p>
+              ) : (
               <InlineEdit
                 className="vp__desc-text"
                 value={video.description}
@@ -335,6 +357,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
                 placeholder="Ajouter une description..."
                 onSave={(description) => update({ description })}
               />
+              )}
             </div>
           )}
         </section>

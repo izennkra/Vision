@@ -24,7 +24,7 @@ export interface Env {
 }
 
 import { SCHEMA } from './schema'
-import { deleteTranscript, getTranscript, receiveAudio, retryFailed } from './transcribe'
+import { deleteTranscript, getTranscript, maybeSummarize, receiveAudio, retryFailed } from './transcribe'
 import { completeRendition, deleteRenditions, qualityLabel, QUALITIES, readyRenditions, setArchived, startRendition, uploadRenditionPart } from './renditions'
 
 type Row = Record<string, unknown>
@@ -39,6 +39,8 @@ const UPGRADES = [
   'ALTER TABLE transcript_chunks ADD COLUMN voices TEXT',
   'ALTER TABLE videos ADD COLUMN archived INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE clients ADD COLUMN position REAL',
+  'ALTER TABLE videos ADD COLUMN summary TEXT',
+  'ALTER TABLE videos ADD COLUMN summary_state TEXT',
 ]
 
 /** Crée les tables au premier démarrage (une fois par instance du serveur). */
@@ -200,6 +202,8 @@ async function toVideo(env: Env, r: Row, forOwner = true, audience: Person[] = [
     width: r.width ?? undefined,
     height: r.height ?? undefined,
     archived: !!r.archived,
+    /** Résumé automatique : null (pas encore), running, done, skipped (trop court), error. */
+    summaryState: r.summary_state ? String(r.summary_state).split(':')[0] : null,
   }
 }
 
@@ -388,7 +392,7 @@ async function serveMedia(req: Request, env: Env, kind: MediaKind, id: string) {
 
 // --- API --------------------------------------------------------------------------------------
 
-async function api(req: Request, env: Env, path: string[]): Promise<Response> {
+async function api(req: Request, env: Env, path: string[], ctx: ExecutionContext): Promise<Response> {
   const method = req.method
   const ownerName = env.OWNER_NAME || 'Izenn Kra'
   const [a, b, c, d] = path // path[4], path[5] : pour les versions allégées
@@ -667,11 +671,17 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         if (!audio || audio.length > 4_000_000) throw new HttpError(413, 'Tranche trop grande')
         const start = Number(new URL(req.url).searchParams.get('start')) || 0
         await receiveAudio(env, b, idx, start, audio, req.headers.get('x-voices'))
+        // Dernière tranche transcrite : le résumé s'écrit en arrière-plan.
+        ctx.waitUntil(maybeSummarize(env, b))
         return json({ ok: true })
       }
-      if (c === 'transcript' && !d && method === 'GET') return json(await getTranscript(env, video, new URL(req.url).searchParams.get('lang')))
+      if (c === 'transcript' && !d && method === 'GET') {
+        ctx.waitUntil(maybeSummarize(env, b)) // relance si un résumé a été interrompu
+        return json(await getTranscript(env, video, new URL(req.url).searchParams.get('lang')))
+      }
       if (c === 'transcript' && d === 'retry' && method === 'POST') {
         await retryFailed(env, b)
+        ctx.waitUntil(maybeSummarize(env, b))
         return json(await getTranscript(env, await getVideoRow(env, b), null))
       }
       if (c === 'thumbnail' && method === 'PUT') {
@@ -695,6 +705,7 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
             .bind(Number(duration) || 0, width ?? null, height ?? null, size, results.length, Number.isInteger(audioChunks) ? audioChunks : null, now(), b),
           env.DB.prepare('DELETE FROM parts WHERE video_id = ?').bind(b),
         ])
+        ctx.waitUntil(maybeSummarize(env, b)) // si toute la transcription est déjà là
         return json(await toVideo(env, await getVideoRow(env, b)))
       }
       if (c === 'comments' && method === 'GET') {
@@ -759,13 +770,13 @@ function cors(req: Request, env: Env, res: Response) {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url)
     const path = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
     if (req.method === 'OPTIONS') return cors(req, env, new Response(null, { status: 204 }))
     try {
       if (path[0] === 'api' || path[0] === 'media') await ensureSchema(env)
-      if (path[0] === 'api') return cors(req, env, await api(req, env, path.slice(1)))
+      if (path[0] === 'api') return cors(req, env, await api(req, env, path.slice(1), ctx))
       // Photos de profil : publiques (adresse impossible à deviner), gardées en cache par le navigateur.
       if (path[0] === 'media' && path[1] === 'avatar' && path[2]) {
         const obj = await env.VIDEOS.get(`avatars/${path[2].replace(/[^\w-]/g, '')}.jpg`)

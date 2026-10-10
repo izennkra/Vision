@@ -492,7 +492,7 @@
 /* --- Transcription --------------------------------------------------------------- */
 .tr { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 22px 22px; }
 .tr__list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
-.tr__inner { margin-top: auto; padding-top: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.tr__inner { margin-top: auto; padding-top: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .tr__cue {
   max-width: 100%;
   padding: 5px 9px;
@@ -507,7 +507,7 @@
 /* Comme une conversation : moi à droite (gris), l'autre personne à gauche (blanc). */
 .tr__cue.is-other { align-self: flex-start; background: var(--c-white); text-align: left; }
 .tr__cue.is-other:hover { background: #f7f7f7; }
-.tr__cue.is-turn { margin-top: 14px; } /* changement de personne : un peu plus d'air */
+.tr__cue.is-turn { margin-top: 16px; } /* changement de personne : un peu plus d'air ; même personne : bulles serrées */
 .tr__cue.is-now { box-shadow: inset 2px 0 0 var(--c-green); color: var(--c-ink); }
 .tr__cue:not(.is-other).is-now { box-shadow: inset -2px 0 0 var(--c-green); }
 .tr__cue { max-width: 88%; }
@@ -559,3 +559,5 @@
 .player__menu-action { color: #8fe08f; }
 .player__menu-more { color: rgba(255, 255, 255, 0.6); }
 .player__menu-more { color: rgba(255, 255, 255, 0.6); }
+.vp__desc-pending { margin: 8px 0 0; color: var(--c-muted-2); }
+.vp__desc-pending::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%; background: var(--c-green); animation: vp-pulse 1.2s ease-in-out infinite; }

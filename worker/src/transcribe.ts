@@ -188,3 +188,94 @@ export async function deleteTranscript(env: TranscribeEnv, videoId: string) {
     env.DB.prepare('DELETE FROM transcript_translations WHERE video_id = ?').bind(videoId),
   ])
 }
+
+// --- Résumé automatique -------------------------------------------------------------------------
+// Dès que toute la transcription est prête, un modèle de langue (Workers AI, allocation gratuite)
+// écrit un résumé de quelques phrases dans la description de la vidéo, si elle est encore vide.
+// Les longues vidéos sont résumées par parties, puis les résumés partiels sont rassemblés.
+
+const SUMMARY_MODELS = ['@cf/meta/llama-3.1-8b-instruct-fast', '@cf/meta/llama-3.1-8b-instruct']
+const PART_WORDS = 2500
+
+async function ask(env: TranscribeEnv, system: string, user: string, maxTokens: number) {
+  if (env.AI_MOCK === '1') return `Résumé automatique (test) : ${user.split(/\s+/).slice(0, 12).join(' ')}…`
+  if (!env.AI) throw new Error('Workers AI non configuré')
+  let last: unknown
+  for (const model of SUMMARY_MODELS) {
+    try {
+      const r = (await env.AI.run(model, { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature: 0.3 })) as { response?: string }
+      if (r.response?.trim()) return r.response.trim()
+    } catch (e) {
+      last = e
+    }
+  }
+  throw last ?? new Error('Résumé vide')
+}
+
+const SYSTEM = (lang: string | null) =>
+  'Tu résumes la vidéo d’un designer qui présente son travail (ou un appel avec ses clients). ' +
+  `Écris en ${lang && lang !== 'fr' ? `langue « ${lang} » (celle de la transcription)` : 'français'}, en un seul paragraphe de 4 à 6 phrases ` +
+  '(environ 70 à 120 mots) : le sujet, les points importants présentés, puis les décisions ou prochaines étapes si elles sont dites. ' +
+  'Pas de titre, pas de liste, pas de formule d’introduction (« Dans cette vidéo… »), n’invente rien.'
+
+export async function summarize(env: TranscribeEnv, lines: string[], lang: string | null) {
+  const words = lines.join(' ').split(/\s+/)
+  if (words.length <= PART_WORDS) return ask(env, SYSTEM(lang), lines.join('\n'), 400)
+  // Longue vidéo : un résumé court par partie, puis le résumé final.
+  const parts: string[] = []
+  let current: string[] = []
+  let count = 0
+  for (const line of lines) {
+    current.push(line)
+    count += line.split(/\s+/).length
+    if (count >= PART_WORDS) {
+      parts.push(current.join('\n'))
+      current = []
+      count = 0
+    }
+  }
+  if (current.length) parts.push(current.join('\n'))
+  const partials: string[] = []
+  for (const part of parts) partials.push(await ask(env, SYSTEM(lang).replace('4 à 6 phrases', '2 à 3 phrases').replace('70 à 120 mots', '40 à 60 mots'), part, 200))
+  return ask(env, SYSTEM(lang), `Résumés successifs des parties de la vidéo :\n${partials.join('\n')}`, 400)
+}
+
+/**
+ * Écrit le résumé si toute la transcription est prête (appelé après chaque tranche et à la fin de l'envoi).
+ * Une seule génération par vidéo ; une description déjà écrite à la main n'est jamais remplacée.
+ */
+export async function maybeSummarize(env: TranscribeEnv, videoId: string) {
+  const v = await env.DB.prepare('SELECT status, audio_chunks, description, summary_state FROM videos WHERE id = ?').bind(videoId).first<Row>()
+  // Un résumé « en cours » depuis plus de 3 minutes a été interrompu : on peut le relancer.
+  const stale = Date.now() - 180_000
+  const state = (v?.summary_state as string | null) ?? null
+  const running = state?.startsWith('running:') && Number(state.slice(8)) > stale
+  if (!v || v.status === 'recording' || (state && !state.startsWith('running:')) || running || v.audio_chunks === null || v.audio_chunks === undefined) return
+  const { results } = await env.DB.prepare('SELECT status, language, cues FROM transcript_chunks WHERE video_id = ? ORDER BY idx').bind(videoId).all<Row>()
+  if (results.length < Number(v.audio_chunks) || results.some((r) => r.status === 'pending')) return
+  // On réserve la génération (évite deux résumés si deux requêtes arrivent en même temps).
+  const claim = await env.DB.prepare(
+    "UPDATE videos SET summary_state = ? WHERE id = ? AND (summary_state IS NULL OR (summary_state LIKE 'running:%' AND CAST(SUBSTR(summary_state, 9) AS INTEGER) < ?))",
+  )
+    .bind(`running:${Date.now()}`, videoId, stale)
+    .run()
+  if (!claim.meta.changes) return
+  try {
+    const cues = results.filter((r) => r.status === 'done').flatMap((r) => JSON.parse(r.cues as string) as Cue[])
+    const twoVoices = cues.some((c) => c.speaker === 'other')
+    const lines = cues.map((c) => (twoVoices ? `${c.speaker === 'other' ? 'Client' : 'Designer'} : ${c.text}` : c.text))
+    if (lines.join(' ').split(/\s+/).length < 15) {
+      await env.DB.prepare("UPDATE videos SET summary_state = 'skipped' WHERE id = ?").bind(videoId).run()
+      return
+    }
+    const language = (results.find((r) => r.language)?.language as string) ?? null
+    const summary = (await summarize(env, lines, language)).replace(/^["«\s]+|["»\s]+$/g, '').slice(0, 2000)
+    await env.DB.batch([
+      env.DB.prepare("UPDATE videos SET summary = ?, summary_state = 'done' WHERE id = ?").bind(summary, videoId),
+      env.DB.prepare("UPDATE videos SET description = ? WHERE id = ? AND (description IS NULL OR TRIM(description) = '')").bind(summary, videoId),
+    ])
+  } catch (e) {
+    console.error('résumé', videoId, e)
+    await env.DB.prepare("UPDATE videos SET summary_state = 'error' WHERE id = ?").bind(videoId).run()
+  }
+}

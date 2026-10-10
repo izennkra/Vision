@@ -16,28 +16,52 @@ export interface Bubble {
 }
 
 const ENDS_SENTENCE = /[.!?…]["»”)]?$/
+const SOFT_BREAK = /[,;:]$/
+/** Longueur visée d'une bulle (≈ 2 lignes dans le panneau) ; au-delà on coupe à la prochaine virgule. */
+const SOFT_MAX = 110
+const HARD_MAX = 190
 
-/** Majuscule au début et ponctuation à la fin de chaque bulle. */
-const polish = (text: string) => {
-  const t = text.replace(/\s+([,.!?;:…])/g, (_, p) => (p === ':' || p === ';' || p === '!' || p === '?' ? ` ${p}` : p)).trim()
-  const capped = t.charAt(0).toUpperCase() + t.slice(1)
-  return ENDS_SENTENCE.test(capped) ? capped : `${capped}.`
-}
-
+/**
+ * Bulles comme une conversation (à la Granola) : une bulle par phrase, courte et lisible.
+ * Le texte est repris mot à mot (chaque mot reçoit un moment, réparti dans sa phrase de transcription),
+ * puis recoupé : nouvelle bulle à chaque fin de phrase, à chaque changement de personne, et dans une
+ * longue phrase, à une virgule (ou à défaut entre deux mots) pour ne jamais faire de pavé.
+ */
 export function toBubbles(cues: Cue[]): Bubble[] {
   const out: Bubble[] = []
+  let cur: Bubble | null = null
   for (const c of cues) {
-    const prev = out[out.length - 1]
-    const sameVoice = prev && (prev.speaker ?? null) === (c.speaker ?? null)
-    const pause = prev ? c.start - prev.end : Infinity
-    // On continue la bulle si la phrase n'est pas finie, ou si elle s'enchaîne sans pause (et pas trop longue).
-    const keepGoing = sameVoice && (!ENDS_SENTENCE.test(prev.text) ? pause < 2.5 : pause < 0.6 && prev.text.length < 180)
-    if (prev && keepGoing) {
-      prev.text = `${prev.text} ${c.text}`
-      prev.end = c.end
-    } else out.push({ start: c.start, end: c.end, text: c.text, speaker: c.speaker })
+    const words = c.text.split(/\s+/).filter(Boolean)
+    const total = words.reduce((n, w) => n + w.length + 1, 0) || 1
+    let seen = 0
+    for (const w of words) {
+      const at = c.start + ((c.end - c.start) * seen) / total
+      seen += w.length + 1
+      const long = cur ? cur.text.length : 0
+      const breakHere =
+        !cur ||
+        (cur.speaker ?? null) !== (c.speaker ?? null) ||
+        (ENDS_SENTENCE.test(cur.text) && !/^[?!:;»]/.test(w)) ||
+        (long > SOFT_MAX && SOFT_BREAK.test(cur.text)) ||
+        long > HARD_MAX
+      if (breakHere) {
+        cur = { start: at, end: c.end, text: w, speaker: c.speaker }
+        out.push(cur)
+      } else {
+        cur!.text += ` ${w}`
+        cur!.end = c.end
+      }
+    }
   }
-  return out.map((b) => ({ ...b, text: polish(b.text) }))
+  // Majuscule en début de phrase, point final si la personne s'arrête sans ponctuation.
+  return out.map((b, i) => {
+    const prev = out[i - 1]
+    const next = out[i + 1]
+    const startsSentence = !prev || prev.speaker !== b.speaker || ENDS_SENTENCE.test(prev.text)
+    let text = startsSentence ? b.text.charAt(0).toUpperCase() + b.text.slice(1) : b.text
+    if ((!next || next.speaker !== b.speaker) && !ENDS_SENTENCE.test(text)) text = text.replace(/[,;:]$/, '') + '.'
+    return { ...b, text }
+  })
 }
 
 interface Props {

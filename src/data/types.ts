@@ -85,6 +85,8 @@ export interface Video {
   hasCode?: boolean
   /** Personnes prévues (« Anonyme » est toujours proposé en plus). */
   people?: Person[]
+  /** Résumé automatique écrit dans la description : null (pas encore), running, done, skipped, error. */
+  summaryState?: string | null
   /** Archivée : stockage moins cher, toujours lisible. */
   archived?: boolean
   /** Dimensions de l'image enregistrée (pour adapter le lecteur au format). */
