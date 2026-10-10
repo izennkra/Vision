@@ -30,10 +30,15 @@ export interface Repository {
   updateVideo(id: ID, patch: Partial<Pick<Video, 'title' | 'description' | 'clientId' | 'status'>>): Promise<Video>
   deleteVideo(id: ID): Promise<void>
 
-  // Enregistrement par morceaux : pensé pour 1 h 30 sans saturer la mémoire
-  // et pour un envoi en ligne au fil de l'eau à l'étape 2.
+  // Enregistrement par morceaux de taille fixe : pensé pour 1 h 30 sans saturer la mémoire
+  // et pour un envoi en ligne au fil de l'eau.
   startRecording(init: { title: string; clientId: ID | null; mimeType: string }): Promise<Video>
+  /** Enregistre (ou remplace) le morceau n° `index` du fichier. */
   appendChunk(videoId: ID, index: number, data: Blob): Promise<void>
+  /** Relit un morceau déjà enregistré. */
+  getChunk(videoId: ID, index: number): Promise<Blob | null>
+  /** Fichier complet (téléchargement sur le Mac). */
+  getVideoFile(videoId: ID): Promise<Blob | null>
   finishRecording(videoId: ID, info: { duration: number; thumbnail: Blob | null; width?: number; height?: number }): Promise<Video>
 
   // Lecture

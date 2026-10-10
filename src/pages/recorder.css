@@ -79,3 +79,74 @@
 .rec__stop:disabled { opacity: 1; background: var(--c-placeholder); }
 .rec__bar .ds-round-white { transition: opacity var(--t-fast) ease; }
 .rec__bar.is-idle .ds-round-white, .rec__bar.is-idle .ds-timer { opacity: var(--o-disabled); }
+
+/* --- Décompte 3, 2, 1 ----------------------------------------------------- */
+.rec__countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(241, 241, 241, 0.86);
+  animation: ds-fade-in var(--t-fast) ease;
+  cursor: pointer;
+}
+.rec__count {
+  font-size: 180px;
+  line-height: 1;
+  color: var(--c-ink-soft);
+  font-variant-numeric: tabular-nums;
+  animation: rec-count 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rec__count-hint { margin: 28px 0 0; font-size: var(--fs-meta); color: var(--c-muted-2); }
+@keyframes rec-count {
+  0% { opacity: 0; transform: scale(1.18); }
+  18% { opacity: 1; transform: scale(1); }
+  82% { opacity: 1; transform: scale(0.98); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+
+/* --- Fin d'enregistrement --------------------------------------------------- */
+.rec__saved {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-bg);
+  animation: ds-fade-in 220ms ease;
+}
+.rec__mark { animation: rec-pop 520ms cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.rec__mark svg { display: block; overflow: visible; }
+.rec__mark-bg { fill: var(--c-orange); transition: fill 400ms ease; }
+.rec__mark.is-done .rec__mark-bg { fill: var(--c-green); }
+.rec__mark-spin {
+  fill: none;
+  stroke: var(--c-white);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 60 214;
+  transform-origin: 43.5px 43.5px;
+  animation: rec-spin 900ms linear infinite;
+  transition: opacity 200ms ease;
+}
+.rec__mark.is-done .rec__mark-spin { opacity: 0; }
+.rec__mark-check {
+  fill: none;
+  stroke: var(--c-white);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+}
+.rec__mark.is-done .rec__mark-check { animation: rec-draw 420ms 120ms ease-out forwards; }
+.rec__saved-title { margin: 22px 0 0; font-size: var(--fs-title); color: var(--c-ink-soft); }
+.rec__saved-sub { margin: 6px 0 0; font-size: var(--fs-meta); color: var(--c-muted-2); }
+@keyframes rec-pop { from { opacity: 0; transform: scale(0.55); } to { opacity: 1; transform: scale(1); } }
+@keyframes rec-spin { to { transform: rotate(360deg); } }
+@keyframes rec-draw { to { stroke-dashoffset: 0; } }

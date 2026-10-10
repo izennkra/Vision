@@ -12,13 +12,16 @@ import { IconCamera, IconFilter, IconGrip, IconMic, IconPause, IconPlay, IconRes
 import { useToast } from '../components/Toast'
 import { clock } from '../lib/format'
 import { downloadVideo } from '../lib/share'
+import * as sounds from '../recorder/sounds'
 import { cameraFilters, filterCss } from '../recorder/filters'
 import { RecordingSession, type Surface } from '../recorder/session'
 import { OFF, useDevices } from '../recorder/useDevices'
 import { pipSupported, usePip } from '../recorder/usePip'
 import './recorder.css'
 
-type State = 'idle' | 'picking' | 'recording' | 'paused' | 'saving'
+type State = 'idle' | 'picking' | 'countdown' | 'recording' | 'paused' | 'saving'
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 const surfaces: { id: Surface; label: string }[] = [
   { id: 'monitor', label: 'Écran entier' },
@@ -40,6 +43,14 @@ export default function Recorder() {
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [fullScreen, setFullScreen] = useState(false)
+  const [count, setCount] = useState(3)
+  const [saved, setSaved] = useState(false)
+  const cancelCountdown = useRef(false)
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (cancelCountdown.current = true)
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [])
   const toast = useToast()
   const session = useRef<RecordingSession | null>(null)
 
@@ -65,18 +76,40 @@ export default function Recorder() {
     const s = session.current
     if (!s || state === 'saving') return
     setState('saving')
+    setSaved(false)
+    sounds.done()
     pip.close()
+    const started = performance.now()
     const video = await s.finish()
     session.current = null
     if (!video) return setState('idle')
+    setSaved(true)
     await downloadVideo(video) // copie sur le Mac (dossier Téléchargements)
+    // Laisse l'animation de fin se jouer en entier avant d'ouvrir la vidéo.
+    await wait(Math.max(0, 1600 - (performance.now() - started)))
     toast('Vidéo enregistrée et téléchargée')
     navigate(`/video/${video.id}`)
   }, [state, pip, navigate, toast])
 
+  /** Décompte 3, 2, 1 avec un petit son à chaque seconde. Échap l'annule. */
+  const runCountdown = async () => {
+    cancelCountdown.current = false
+    setState('countdown')
+    for (const n of [3, 2, 1]) {
+      if (cancelCountdown.current) return false
+      setCount(n)
+      sounds.tick()
+      await wait(1000)
+    }
+    if (cancelCountdown.current) return false
+    sounds.go()
+    return true
+  }
+
   const go = async () => {
     if (state !== 'idle') return
     setError(null)
+    sounds.unlock()
     // La fenêtre flottante doit s'ouvrir pendant le clic (exigence du navigateur).
     if (pipSupported) await pip.open(220, 220).catch(() => null)
     const { total } = await repo.listVideos({ search: 'Sans titre', limit: 1 })
@@ -89,12 +122,10 @@ export default function Recorder() {
       clientId: params.get('client'),
     })
     setState('picking')
+    let whole = false
     try {
-      const picked = await s.pickSource()
-      // Écran entier : la bulle est dessinée dans la vidéo ; la fenêtre flottante serait filmée en double.
-      const whole = picked === 'monitor'
+      whole = (await s.pickSource()) === 'monitor'
       setFullScreen(whole)
-      if (whole) pip.close()
     } catch (e) {
       setState('idle')
       // Annulé par l'utilisateur : on referme tout. Sinon (clic « consommé » par la fenêtre flottante),
@@ -103,6 +134,14 @@ export default function Recorder() {
       else setError('Clique de nouveau sur GO pour choisir ce que tu enregistres.')
       return
     }
+    if (!(await runCountdown())) {
+      s.dispose()
+      pip.close()
+      setState('idle')
+      return
+    }
+    // Écran entier : la bulle est dessinée dans la vidéo ; la fenêtre flottante serait filmée en double.
+    if (whole) pip.close()
     s.onEnded = () => stopRef.current()
     session.current = s
     try {
@@ -226,9 +265,25 @@ export default function Recorder() {
         </div>
       )}
 
+      {state === 'countdown' && (
+        <div className="rec__countdown" onClick={() => (cancelCountdown.current = true)}>
+          <span key={count} className="rec__count">{count}</span>
+          <p className="rec__count-hint">Échap pour annuler</p>
+        </div>
+      )}
+      {state === 'saving' && <SavedOverlay saved={saved} />}
+
       {pip.win &&
         createPortal(
-          <PipBubble stream={devices.camera} filter={filter} state={state} elapsed={elapsed} onPause={togglePause} onStop={stop} />,
+          <PipBubble
+            stream={devices.camera}
+            filter={filter}
+            state={state}
+            count={count}
+            elapsed={elapsed}
+            onPause={togglePause}
+            onStop={stop}
+          />,
           pip.win.document.body,
         )}
     </div>
@@ -321,17 +376,35 @@ function ControlBar({ state, elapsed, onStop, onPause, onRestart }: BarProps) {
   )
 }
 
+/** Animation de fin : le rond vert apparaît, puis la coche se dessine quand tout est enregistré. */
+function SavedOverlay({ saved }: { saved: boolean }) {
+  return (
+    <div className="rec__saved">
+      <div className={`rec__mark${saved ? ' is-done' : ''}`}>
+        <svg viewBox="0 0 87 87" width="87" height="87" aria-hidden>
+          <circle className="rec__mark-bg" cx="43.5" cy="43.5" r="43.5" />
+          <circle className="rec__mark-spin" cx="43.5" cy="43.5" r="34" />
+          <path className="rec__mark-check" d="M29 44.5 L39.5 55 L59 33" />
+        </svg>
+      </div>
+      <p className="rec__saved-title">{saved ? 'Vidéo enregistrée' : 'Finalisation…'}</p>
+      <p className="rec__saved-sub">{saved ? 'Copie sur ton Mac, ouverture de la page' : 'Écriture des derniers morceaux'}</p>
+    </div>
+  )
+}
+
 interface PipProps {
   stream: MediaStream | null
   filter: string
   state: State
+  count: number
   elapsed: number
   onPause: () => void
   onStop: () => void
 }
 
 /** Contenu de la fenêtre flottante : la bulle et, au survol, pause / arrêt. Styles en ligne (autre document). */
-function PipBubble({ stream, filter, state, elapsed, onPause, onStop }: PipProps) {
+function PipBubble({ stream, filter, state, count, elapsed, onPause, onStop }: PipProps) {
   const [hover, setHover] = useState(false)
   const btn: React.CSSProperties = {
     width: 34,
@@ -357,6 +430,26 @@ function PipBubble({ stream, filter, state, elapsed, onPause, onStop }: PipProps
           <CameraVideo stream={stream} filter={filter} />
         </div>
       )}
+      {state === 'countdown' && (
+        <div
+          key={count}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 64,
+            fontWeight: 600,
+            color: '#323232',
+            background: 'rgba(241,241,241,0.55)',
+            animation: 'pip-count 1s ease-out both',
+          }}
+        >
+          <style>{'@keyframes pip-count{0%{opacity:0;transform:scale(1.25)}20%{opacity:1;transform:scale(1)}85%{opacity:1}100%{opacity:0;transform:scale(.92)}}'}</style>
+          {count}
+        </div>
+      )}
       <div
         style={{
           position: 'absolute',
@@ -367,7 +460,7 @@ function PipBubble({ stream, filter, state, elapsed, onPause, onStop }: PipProps
           gap: 8,
           justifyContent: 'center',
           alignItems: 'center',
-          opacity: hover || !stream ? 1 : 0,
+          opacity: state !== 'countdown' && (hover || !stream) ? 1 : 0,
           transition: 'opacity 150ms ease',
         }}
       >

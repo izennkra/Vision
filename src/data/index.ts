@@ -3,6 +3,6 @@
 import { LocalRepository } from './local/LocalRepository'
 import type { Repository } from './repository'
 
-export const repo: Repository & Pick<LocalRepository, 'getVideoFile'> = new LocalRepository()
+export const repo: Repository = new LocalRepository()
 export type { Repository } from './repository'
 export * from './types'

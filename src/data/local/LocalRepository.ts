@@ -226,10 +226,11 @@ export class LocalRepository implements Repository {
   async appendChunk(videoId: ID, index: number, data: Blob) {
     const db = await this.dbp
     const tx = db.transaction(['chunks', 'videos'], 'readwrite')
+    const previous = await tx.objectStore('chunks').get([videoId, index])
     tx.objectStore('chunks').put({ videoId, index, size: data.size, data })
     const video = await tx.objectStore('videos').get(videoId)
     if (video) {
-      video.size += data.size
+      video.size += data.size - (previous?.size ?? 0)
       video.chunkCount = Math.max(video.chunkCount, index + 1)
       tx.objectStore('videos').put(video)
     }
@@ -251,6 +252,10 @@ export class LocalRepository implements Repository {
     const done: Video = { ...video, duration, width, height, status: 'draft', updatedAt: now() }
     await db.put('videos', done)
     return done
+  }
+
+  async getChunk(videoId: ID, index: number) {
+    return (await (await this.dbp).get('chunks', [videoId, index]))?.data ?? null
   }
 
   /** Assemble les morceaux en un seul fichier (pour le téléchargement local). */
