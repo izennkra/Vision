@@ -104,8 +104,18 @@
 
 /* --- Lecteur ---------------------------------------------------------------- */
 /* Le lecteur prend le format de la vidéo ; s'il est trop haut il est limité et la vidéo est centrée sur fond noir. */
-.player { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: calc(100vh - 80px); border-radius: var(--r-player); background: var(--c-placeholder); overflow: hidden; isolation: isolate; }
-.player.is-started, .player.has-poster { background: var(--c-video-bg); }
+.player { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: calc(100vh - 80px); border-radius: var(--r-player); overflow: hidden; isolation: isolate; }
+/* Pas de fond noir sur le cadre ni derrière l'image : découpé sur l'arrondi, il laissait un liseré sombre.
+   Le noir des bandes (vidéo plus haute que le lecteur) est un calque placé 1 px à l'intérieur du bord. */
+.player:not(.is-started):not(.has-poster) { background: var(--c-placeholder); }
+.player.is-started::before, .player.has-poster::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: calc(var(--r-player) - 1px);
+  background: var(--c-video-bg);
+}
 .player video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
 .player:not(.is-started) video { opacity: 0; }
 .player__poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
@@ -299,6 +309,7 @@
   -webkit-box-decoration-break: clone;
 }
 .player:fullscreen { aspect-ratio: auto; border-radius: 0; background: #000; }
+.player:fullscreen::before { inset: 0; border-radius: 0; }
 .player:fullscreen .player__caption span { font-size: 26px; }
 .player:fullscreen .player__controls { padding: 50px 24px 16px; }
 

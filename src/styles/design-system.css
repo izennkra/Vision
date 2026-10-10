@@ -75,7 +75,7 @@
   --o-hover: 0.7;      /* opacité au survol */
   --o-disabled: 0.35;
   --r-menu: 10px;      /* menu contextuel (clic droit) */
-  --r-player: 20px;    /* coins arrondis du lecteur vidéo */
+  --r-player: 14px;    /* coins arrondis du lecteur vidéo */
 
   /* --- Dimensions (frame de référence 1440 px) --------------------------- */
   /* Logo et avatar */
