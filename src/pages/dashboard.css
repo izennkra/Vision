@@ -37,7 +37,7 @@
 .dash__main {
   margin-left: var(--dash-content-x);
   margin-right: var(--dash-right);
-  padding-top: 97px;
+  padding-top: 117px; /* sous le logo */
   padding-bottom: 60px;
 }
 .dash__title {
@@ -113,3 +113,4 @@
 .dash__team-faces .ds-initials { width: 18px; height: 18px; box-shadow: 0 0 0 1.5px var(--c-surface); }
 .dash__team-faces .ds-initials + .ds-initials { margin-left: -5px; }
 .dash__team:not(:has(.dash__team-faces)) { padding-left: 10px; }
+.dash__archived { background: var(--c-ink-soft); color: var(--c-white); }

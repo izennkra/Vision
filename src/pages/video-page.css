@@ -8,8 +8,9 @@
 
 .vp__main { overflow-y: auto; padding: 29px 27.5px 30px 30px; }
 
-.vp__top { display: flex; align-items: center; justify-content: space-between; height: var(--video-action-h); }
-.vp__brand { display: flex; align-items: center; gap: 10px; }
+.vp__top { display: flex; align-items: flex-start; justify-content: space-between; min-height: var(--logo-h); }
+.vp__top .vp__actions { margin-top: 8px; } /* comme la maquette : boutons en haut, à droite du logo */
+.vp__brand { display: flex; align-items: center; gap: 10px; min-height: var(--logo-h); }
 .vp__back {
   display: flex;
   align-items: center;
@@ -64,7 +65,7 @@
 .vp__copy:hover .vp__tip, .vp__copy.is-copied .vp__tip { opacity: 1; transform: none; }
 .vp__copy.is-copied .vp__tip { color: var(--c-green); }
 
-.vp__card { margin-top: 68px; background: var(--c-surface); }
+.vp__card { margin-top: 31px; background: var(--c-surface); }
 
 .vp__head {
   height: var(--video-header-h);
@@ -313,17 +314,19 @@
 /* --- Commentaires ------------------------------------------------------------ */
 /* --- Panneau de droite : onglets Commentaires / Transcription ---------------- */
 .side { display: flex; flex-direction: column; min-height: 0; background: var(--c-surface); }
-.side__tabs { display: inline-flex; align-self: flex-start; margin: 29px var(--side-pad) 0 22px; background: var(--c-surface-strong); }
+/* Onglet actif : pilule sombre arrondie ; inactif : rectangle gris à coins carrés ; collés l'un à l'autre. */
+.side__tabs { display: inline-flex; align-self: flex-start; margin: 29px var(--side-pad) 0 22px; }
 .side__tabs button {
   height: 22px;
   padding: 0 8px;
-  border-radius: var(--r-pill);
+  border-radius: 0;
+  background: var(--c-surface-strong);
   font-size: var(--fs-body);
   color: var(--c-muted-3);
   transition: background var(--t-fast) ease, color var(--t-fast) ease;
 }
 .side__tabs button:not(.is-on):hover { color: var(--c-ink-soft); }
-.side__tabs button.is-on { background: var(--c-ink-soft); color: var(--c-white); }
+.side__tabs button.is-on { border-radius: var(--r-pill); background: var(--c-ink-soft); color: var(--c-white); }
 .side__panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .side__panel[hidden] { display: none; }
 
@@ -377,7 +380,9 @@
 /* Téléphone : marges réduites, boutons à taille de doigt. */
 @media (max-width: 600px) {
   .vp__main { padding: 16px 16px 20px; }
-  .vp__top { height: 36px; }
+  .vp__top, .vp__brand { min-height: 0; }
+  .vp__top .ds-logo { width: 64px; height: 52px; }
+  .vp__top .vp__actions { margin-top: 4px; }
   .vp__top .ds-action { height: 34px; padding: 0 14px; font-size: 15px; }
   .vp__link { width: 34px; height: 34px; }
   .vp__link svg { width: 16px; height: 16px; }
@@ -487,7 +492,13 @@
   transition: background var(--t-fast) ease, color var(--t-fast) ease;
 }
 .tr__cue:hover { background: #d6d6d6; }
-.tr__cue.is-now { background: var(--c-white); color: var(--c-ink); }
+/* Comme une conversation : moi à droite (gris), l'autre personne à gauche (blanc). */
+.tr__cue.is-other { align-self: flex-start; background: var(--c-white); text-align: left; }
+.tr__cue.is-other:hover { background: #f7f7f7; }
+.tr__cue.is-turn { margin-top: 14px; } /* changement de personne : un peu plus d'air */
+.tr__cue.is-now { box-shadow: inset 2px 0 0 var(--c-green); color: var(--c-ink); }
+.tr__cue:not(.is-other).is-now { box-shadow: inset -2px 0 0 var(--c-green); }
+.tr__cue { max-width: 88%; }
 .tr__empty { align-self: stretch; margin: 0; padding: 8px 0; font-size: var(--fs-meta); color: var(--c-muted-1); text-align: right; }
 .tr__empty.is-pending::after { content: ''; display: inline-block; width: 8px; height: 8px; margin-left: 8px; border-radius: 50%; background: var(--c-green); animation: vp-pulse 1.2s ease-in-out infinite; }
 .tr__bar { display: flex; gap: 8px; margin-top: 22px; }
@@ -533,3 +544,6 @@
   .tr__cue { font-size: 15px; }
   .tr__pill { height: 42px; font-size: 15px; }
 }
+.player__menu-action { color: #8fe08f; }
+.player__menu-more { color: rgba(255, 255, 255, 0.6); }
+.player__menu-more { color: rgba(255, 255, 255, 0.6); }

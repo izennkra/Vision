@@ -7,7 +7,7 @@
 // Workers AI pour un usage normal ; au-delà (offre gratuite), la transcription attend le lendemain.
 
 type Row = Record<string, unknown>
-export type Cue = { start: number; end: number; text: string }
+export type Cue = { start: number; end: number; text: string; speaker?: 'me' | 'other' }
 
 interface AiLike {
   run(model: string, input: Record<string, unknown>): Promise<unknown>
@@ -37,9 +37,32 @@ const HALLUCINATIONS = [
   /^\W*$/,
 ]
 
+/**
+ * Qui parle pendant chaque phrase : l'application envoie, pour chaque tranche, un caractère par 100 ms
+ * (m : le propriétaire au micro, s : le son de l'appel, - : silence). La voix la plus présente l'emporte ;
+ * une phrase sans indice garde la voix de la précédente.
+ */
+function assignSpeakers(cues: Cue[], voices: string | null, chunkStart: number) {
+  if (!voices) return cues
+  let last: Cue['speaker']
+  return cues.map((c) => {
+    const from = Math.max(0, Math.floor((c.start - chunkStart) * 10))
+    const to = Math.min(voices.length, Math.ceil((c.end - chunkStart) * 10))
+    let me = 0
+    let other = 0
+    for (let i = from; i < to; i++) {
+      if (voices[i] === 'm') me++
+      else if (voices[i] === 's') other++
+    }
+    const speaker: Cue['speaker'] = me === 0 && other === 0 ? last : me >= other ? 'me' : 'other'
+    last = speaker ?? last
+    return speaker ? { ...c, speaker } : c
+  })
+}
+
 const cleanCues = (cues: Cue[]) =>
   cues
-    .map((c) => ({ start: Math.max(0, c.start), end: Math.max(c.start, c.end), text: c.text.replace(/\s+/g, ' ').trim() }))
+    .map((c) => ({ ...c, start: Math.max(0, c.start), end: Math.max(c.start, c.end), text: c.text.replace(/\s+/g, ' ').trim() }))
     .filter((c) => c.text && !HALLUCINATIONS.some((h) => h.test(c.text)))
 
 function mockWhisper(seconds: number): unknown {
@@ -56,7 +79,7 @@ async function runWhisper(env: TranscribeEnv, audio: string, language: string | 
 
 /** Transcrit une tranche déjà gardée dans R2 et enregistre le résultat. */
 export async function transcribeChunk(env: TranscribeEnv, videoId: string, idx: number) {
-  const row = await env.DB.prepare('SELECT start FROM transcript_chunks WHERE video_id = ? AND idx = ?').bind(videoId, idx).first<Row>()
+  const row = await env.DB.prepare('SELECT start, voices FROM transcript_chunks WHERE video_id = ? AND idx = ?').bind(videoId, idx).first<Row>()
   if (!row) return
   const start = Number(row.start) || 0
   try {
@@ -78,7 +101,7 @@ export async function transcribeChunk(env: TranscribeEnv, videoId: string, idx: 
     if (!r.segments && r.text) cues = [{ start, end: start + (r.transcription_info?.duration ?? 20), text: r.text }]
     const language = r.transcription_info?.language ?? (prev?.language as string) ?? null
     await env.DB.prepare("UPDATE transcript_chunks SET status = 'done', language = ?, cues = ? WHERE video_id = ? AND idx = ?")
-      .bind(language, JSON.stringify(cleanCues(cues)), videoId, idx)
+      .bind(language, JSON.stringify(cleanCues(assignSpeakers(cues, (row.voices as string) ?? null, start))), videoId, idx)
       .run()
   } catch (e) {
     console.error('transcription', videoId, idx, e)
@@ -87,10 +110,11 @@ export async function transcribeChunk(env: TranscribeEnv, videoId: string, idx: 
 }
 
 /** Reçoit une tranche de son (base64), la garde et la transcrit. */
-export async function receiveAudio(env: TranscribeEnv, videoId: string, idx: number, start: number, audio: string) {
+export async function receiveAudio(env: TranscribeEnv, videoId: string, idx: number, start: number, audio: string, voices: string | null = null) {
   await env.VIDEOS.put(audioKey(videoId, idx), audio, { httpMetadata: { contentType: 'text/plain' } })
-  await env.DB.prepare("INSERT OR REPLACE INTO transcript_chunks (video_id, idx, start, status, cues) VALUES (?, ?, ?, 'pending', '[]')")
-    .bind(videoId, idx, start)
+  const clean = voices && /^[ms-]{1,1000}$/.test(voices) ? voices : null
+  await env.DB.prepare("INSERT OR REPLACE INTO transcript_chunks (video_id, idx, start, status, cues, voices) VALUES (?, ?, ?, 'pending', '[]', ?)")
+    .bind(videoId, idx, start, clean)
     .run()
   await transcribeChunk(env, videoId, idx)
 }

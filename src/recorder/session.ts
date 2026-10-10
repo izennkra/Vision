@@ -133,6 +133,8 @@ export class RecordingSession {
   private audioSource: AudioSampleSource | null = null
   /** Son découpé pour la transcription. */
   private speech: SpeechChunker | null = null
+  private meters: { mic: AnalyserNode; sys: AnalyserNode; buf: Float32Array<ArrayBuffer> } | null = null
+  private voices: { t: number; label: string }[] = []
   private writer: PartWriter | null = null
   private running = false
   private stopPumps: (() => void)[] = []
@@ -241,7 +243,10 @@ export class RecordingSession {
     this.audioOrigin = null
     this.dropped = 0
     const videoId = this.video!.id
-    this.speech = this.audioTrack ? new SpeechChunker((index, start, wav) => repo.appendAudio(videoId, index, start, wav)) : null
+    this.voices = []
+    this.speech = this.audioTrack
+      ? new SpeechChunker((index, start, wav, length) => repo.appendAudio(videoId, index, start, wav, this.voicesFor(start, length)))
+      : null
     this.running = true
     this.emit(true) // première image tout de suite
     this.thumbnail = this.grabThumbnail()
@@ -354,7 +359,9 @@ export class RecordingSession {
 
   /** Son : micro + son de l'écran (si partagé), mélangés en une seule piste. */
   private prepareAudio() {
-    const tracks = [...(this.display?.getAudioTracks() ?? []), ...(this.opts.mic?.getAudioTracks() ?? [])]
+    const screenTracks = this.display?.getAudioTracks() ?? []
+    const micTracks = this.opts.mic?.getAudioTracks() ?? []
+    const tracks = [...screenTracks, ...micTracks]
     if (tracks.length === 0) return
     if (tracks.length === 1) {
       this.audioTrack = tracks[0].clone()
@@ -362,9 +369,56 @@ export class RecordingSession {
     }
     const ctx = new AudioContext()
     const dest = ctx.createMediaStreamDestination()
-    for (const t of tracks) ctx.createMediaStreamSource(new MediaStream([t])).connect(dest)
+    // Qui parle ? Le micro, c'est toi ; le son de l'écran ou de l'onglet (Google Meet…), ce sont les autres.
+    // On mesure le volume de chacun séparément pour séparer les voix dans la transcription.
+    const meter = (list: MediaStreamTrack[]) => {
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 2048
+      for (const t of list) {
+        const src = ctx.createMediaStreamSource(new MediaStream([t]))
+        src.connect(dest)
+        src.connect(analyser)
+      }
+      return analyser
+    }
+    const sys = meter(screenTracks)
+    const mic = meter(micTracks)
+    if (screenTracks.length && micTracks.length) this.meters = { mic, sys, buf: new Float32Array(2048) }
     this.audioCtx = ctx
     this.audioTrack = dest.stream.getAudioTracks()[0]
+  }
+
+  /** Toutes les 100 ms : qui parle (m : toi, s : les autres, - : silence). */
+  private sampleVoices() {
+    const m = this.meters
+    if (!m || !this.running || this.pausedAt !== null) return
+    const rms = (a: AnalyserNode) => {
+      a.getFloatTimeDomainData(m.buf)
+      let e = 0
+      for (let i = 0; i < m.buf.length; i++) e += m.buf[i] * m.buf[i]
+      return Math.sqrt(e / m.buf.length)
+    }
+    const mic = rms(m.mic)
+    const sys = rms(m.sys)
+    const SPEECH = 0.012
+    const label = Math.max(mic, sys) < SPEECH ? '-' : mic >= sys ? 'm' : 's'
+    this.voices.push({ t: this.duration, label })
+  }
+
+  /** Voix d'une tranche de son : un caractère par 100 ms. */
+  private voicesFor(start: number, length: number) {
+    if (!this.meters) return undefined
+    const out: string[] = []
+    let i = 0
+    for (let k = 0; k < Math.round(length * 10); k++) {
+      const t = start + k / 10
+      while (i < this.voices.length - 1 && this.voices[i + 1].t <= t) i++
+      out.push(this.voices[i]?.label ?? '-')
+    }
+    // Ce qui précède la tranche ne servira plus.
+    const keepFrom = this.voices.findIndex((v) => v.t >= start + length - 1)
+    if (keepFrom > 0) this.voices.splice(0, keepFrom)
+    return out.join('')
   }
 
   private startPumps() {
@@ -401,6 +455,7 @@ export class RecordingSession {
         if (performance.now() - this.lastEmit > 450) this.emit(true)
       }),
     )
+    if (this.meters) this.stopPumps.push(ticker(100, () => this.sampleVoices()))
   }
 
   private pump<T extends VideoFrame | AudioData>(Proc: ProcessorCtor, track: MediaStreamTrack, onData: (d: T) => void) {

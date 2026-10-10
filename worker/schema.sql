@@ -86,7 +86,8 @@ CREATE TABLE IF NOT EXISTS transcript_chunks (
   start REAL NOT NULL,           -- début de la tranche dans la vidéo (secondes)
   status TEXT NOT NULL,          -- pending | done | error
   language TEXT,                 -- langue détectée (fr, en…)
-  cues TEXT NOT NULL DEFAULT '[]', -- [{ start, end, text }] en secondes dans la vidéo
+  cues TEXT NOT NULL DEFAULT '[]', -- [{ start, end, text, speaker }] en secondes dans la vidéo
+  voices TEXT,                   -- qui parle, un caractère par 100 ms (m : micro, s : son de l'appel, - : silence)
   PRIMARY KEY (video_id, idx)
 );
 
@@ -97,4 +98,24 @@ CREATE TABLE IF NOT EXISTS transcript_translations (
   lang TEXT NOT NULL,
   cues TEXT NOT NULL,
   PRIMARY KEY (video_id, idx, lang)
+);
+
+-- Versions allégées (720p, 480p) à côté du fichier d'origine.
+CREATE TABLE IF NOT EXISTS renditions (
+  video_id TEXT NOT NULL,
+  quality INTEGER NOT NULL,      -- 720, 480
+  object_key TEXT NOT NULL,
+  upload_id TEXT,                -- envoi en cours
+  status TEXT NOT NULL,          -- uploading | ready
+  size INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (video_id, quality)
+);
+
+CREATE TABLE IF NOT EXISTS rendition_parts (
+  video_id TEXT NOT NULL,
+  quality INTEGER NOT NULL,
+  idx INTEGER NOT NULL,
+  etag TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  PRIMARY KEY (video_id, quality, idx)
 );

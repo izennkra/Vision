@@ -25,6 +25,7 @@ export interface Env {
 
 import { SCHEMA } from './schema'
 import { deleteTranscript, getTranscript, receiveAudio, retryFailed } from './transcribe'
+import { completeRendition, deleteRenditions, qualityLabel, QUALITIES, readyRenditions, setArchived, startRendition, uploadRenditionPart } from './renditions'
 
 type Row = Record<string, unknown>
 
@@ -35,6 +36,8 @@ const UPGRADES = [
   "ALTER TABLE videos ADD COLUMN people TEXT NOT NULL DEFAULT '[]'",
   'ALTER TABLE videos ADD COLUMN audio_chunks INTEGER',
   "ALTER TABLE clients ADD COLUMN people TEXT NOT NULL DEFAULT '[]'",
+  'ALTER TABLE transcript_chunks ADD COLUMN voices TEXT',
+  'ALTER TABLE videos ADD COLUMN archived INTEGER NOT NULL DEFAULT 0',
 ]
 
 /** Crée les tables au premier démarrage (une fois par instance du serveur). */
@@ -111,7 +114,10 @@ async function requireOwner(req: Request, env: Env) {
 }
 
 /** Lien de lecture signé (la balise <video> ne peut pas envoyer d'en-tête d'autorisation). */
-async function mediaUrl(env: Env, id: string, kind: 'video' | 'thumb') {
+/** kind : video (original), thumb (vignette), r720 / r480 (versions allégées). */
+type MediaKind = 'video' | 'thumb' | `r${number}`
+
+async function mediaUrl(env: Env, id: string, kind: MediaKind) {
   const exp = Date.now() + MEDIA_HOURS * 3600_000
   return `/media/${kind}/${id}?e=${exp}&s=${await sign(env, `${kind}:${id}:${exp}`)}`
 }
@@ -192,7 +198,20 @@ async function toVideo(env: Env, r: Row, forOwner = true, audience: Person[] = [
     commentCount: r.comment_count,
     width: r.width ?? undefined,
     height: r.height ?? undefined,
+    archived: !!r.archived,
   }
+}
+
+/** Qualités de lecture : l'original et les versions allégées prêtes, chacune avec son adresse signée. */
+async function qualitiesOf(env: Env, r: Row) {
+  const id = r.id as string
+  const original = { label: qualityLabel(r.width as number, r.height as number), height: Math.min(Number(r.width) || 1920, Number(r.height) || 1080), url: await mediaUrl(env, id, 'video') }
+  const list = [original]
+  for (const x of await readyRenditions(env, id)) {
+    const q = Number(x.quality)
+    if (q < original.height - 40) list.push({ label: `${q}p`, height: q, url: await mediaUrl(env, id, `r${q}`) })
+  }
+  return list
 }
 
 const toComment = (r: Row) => ({
@@ -298,6 +317,7 @@ async function deleteVideo(env: Env, id: string) {
     env.DB.prepare('DELETE FROM notifications WHERE video_id = ?').bind(id),
   ])
   await deleteTranscript(env, id)
+  await deleteRenditions(env, id)
 }
 
 // --- Accès aux pages client ------------------------------------------------------------------
@@ -326,12 +346,19 @@ async function checkShareAccess(req: Request, env: Env, video: Row): Promise<Per
 
 // --- Lecture des fichiers (vidéo, vignette) ---------------------------------------------------
 
-async function serveMedia(req: Request, env: Env, kind: 'video' | 'thumb', id: string) {
+async function serveMedia(req: Request, env: Env, kind: MediaKind, id: string) {
   const url = new URL(req.url)
   const exp = url.searchParams.get('e') ?? ''
   const sig = url.searchParams.get('s') ?? ''
   if (Number(exp) < Date.now() || !same(sig, await sign(env, `${kind}:${id}:${exp}`))) return new Response('Lien expiré', { status: 403 })
-  const key = kind === 'thumb' ? `thumbs/${id}.jpg` : (await getVideoRow(env, id)).object_key as string
+  let key: string
+  if (kind === 'thumb') key = `thumbs/${id}.jpg`
+  else if (kind === 'video') key = (await getVideoRow(env, id)).object_key as string
+  else {
+    const r = await env.DB.prepare("SELECT object_key FROM renditions WHERE video_id = ? AND quality = ? AND status = 'ready'").bind(id, Number(kind.slice(1))).first<Row>()
+    if (!r) return new Response('Introuvable', { status: 404 })
+    key = r.object_key as string
+  }
   const object = await env.VIDEOS.get(key, { range: req.headers, onlyIf: req.headers })
   if (!object) return new Response('Introuvable', { status: 404 })
   const headers = new Headers()
@@ -361,7 +388,7 @@ async function serveMedia(req: Request, env: Env, kind: 'video' | 'thumb', id: s
 async function api(req: Request, env: Env, path: string[]): Promise<Response> {
   const method = req.method
   const ownerName = env.OWNER_NAME || 'Izenn Kra'
-  const [a, b, c, d] = path
+  const [a, b, c, d] = path // path[4], path[5] : pour les versions allégées
 
   // Connexion du propriétaire.
   if (a === 'login' && method === 'POST') {
@@ -405,6 +432,7 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         video: await toVideo(env, video, false, await audienceOf(env, video)),
         clients: clients.map((r) => toClient(r, false)),
         playbackUrl: await mediaUrl(env, video.id as string, 'video'),
+        qualities: await qualitiesOf(env, video),
         me: me ? { id: me.id, name: me.name } : null,
       })
     }
@@ -534,7 +562,31 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
 
     if (b) {
       const video = await getVideoRow(env, b)
-      if (!c && method === 'GET') return json({ ...(await toVideo(env, video)), playbackUrl: await mediaUrl(env, b, 'video') })
+      if (!c && method === 'GET')
+        return json({ ...(await toVideo(env, video)), playbackUrl: await mediaUrl(env, b, 'video'), qualities: await qualitiesOf(env, video) })
+      // Versions allégées (720p, 480p) préparées par l'application du propriétaire.
+      if (c === 'renditions' && d) {
+        const q = Number(d)
+        if (!QUALITIES.includes(q)) throw new HttpError(400, 'Qualité inconnue')
+        const e = path[4]
+        if (!e && method === 'POST') {
+          await startRendition(env, video, q)
+          return json({ ok: true })
+        }
+        if (e === 'parts' && path[5] !== undefined && method === 'PUT') {
+          await uploadRenditionPart(env, b, q, Number(path[5]), await req.arrayBuffer())
+          return json({ ok: true })
+        }
+        if (e === 'complete' && method === 'POST') {
+          await completeRendition(env, b, q)
+          return json({ qualities: await qualitiesOf(env, video) })
+        }
+      }
+      // Archivage : stockage moins cher pour les vidéos qu'on ne regarde plus, toujours lisibles.
+      if ((c === 'archive' || c === 'unarchive') && method === 'POST') {
+        await setArchived(env, video, c === 'archive')
+        return json(await toVideo(env, await getVideoRow(env, b)))
+      }
       if (!c && method === 'PATCH') {
         const p = await body<Row>(req)
         const sets: string[] = []
@@ -585,7 +637,7 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         const audio = await req.text()
         if (!audio || audio.length > 4_000_000) throw new HttpError(413, 'Tranche trop grande')
         const start = Number(new URL(req.url).searchParams.get('start')) || 0
-        await receiveAudio(env, b, idx, start, audio)
+        await receiveAudio(env, b, idx, start, audio, req.headers.get('x-voices'))
         return json({ ok: true })
       }
       if (c === 'transcript' && !d && method === 'GET') return json(await getTranscript(env, video, new URL(req.url).searchParams.get('lang')))
@@ -695,8 +747,8 @@ export default {
           }),
         )
       }
-      if (path[0] === 'media' && (path[1] === 'video' || path[1] === 'thumb') && path[2])
-        return noIndex(cors(req, env, await serveMedia(req, env, path[1], path[2])))
+      if (path[0] === 'media' && (path[1] === 'video' || path[1] === 'thumb' || /^r\d+$/.test(path[1])) && path[2])
+        return noIndex(cors(req, env, await serveMedia(req, env, path[1] as MediaKind, path[2])))
       return noIndex(await env.ASSETS.fetch(req))
     } catch (e) {
       if (e instanceof HttpError) return cors(req, env, json({ error: e.message, ...e.data }, e.status))

@@ -78,8 +78,8 @@
 
   /* --- Dimensions (frame de référence 1440 px) --------------------------- */
   /* Logo et avatar */
-  --logo-w: 58px;
-  --logo-h: 22px;
+  --logo-w: 89px;                /* logo Visions (912 × 746 dans le fichier) : 89 × 73 */
+  --logo-h: 73px;
 
   /* Dashboard */
   --dash-logo-x: 32px;
@@ -87,8 +87,8 @@
   --dash-avatar: 42px;
   --dash-side-x: 29px;           /* marge gauche de la barre latérale */
   --dash-side-w: 222px;
-  --dash-side-top: 96px;         /* haut du bouton « Nouveau fichier » */
-  --dash-side-bottom: 778px;     /* bas du panneau gris */
+  --dash-side-top: 116px;        /* haut du bouton « Nouvelle vidéo » (sous le logo) */
+  --dash-side-bottom: 798px;     /* bas du panneau gris */
   --dash-new-h: 37px;
   --dash-new-gap: 10px;          /* bouton → recherche */
   --dash-search-h: 37px;
@@ -170,7 +170,16 @@ button { cursor: pointer; }
    ========================================================================== */
 
 /* Logo IK (fichier fourni, 58 × 22) */
-.ds-logo { display: block; width: var(--logo-w); height: var(--logo-h); }
+.ds-logo { display: block; width: var(--logo-w); height: var(--logo-h); overflow: visible; }
+/* Yeux du logo : regard aléatoire et clignements (même mouvement que les photos de profil). */
+.logo__pupil { transition-property: transform; transition-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1); }
+.logo__eye { transform-box: view-box; }
+.logo__eye.is-blinking { animation: logo-blink 200ms ease-in-out; }
+@keyframes logo-blink {
+  0%, 100% { transform: rotate(var(--a)) scaleY(1) rotate(calc(-1 * var(--a))); }
+  50% { transform: rotate(var(--a)) scaleY(0.06) rotate(calc(-1 * var(--a))); }
+}
+@media (prefers-reduced-motion: reduce) { .logo__eye.is-blinking { animation: none; } .logo__pupil { transition: none; } }
 
 /* Avatar rond */
 .ds-avatar { display: block; border-radius: var(--r-round); object-fit: cover; }

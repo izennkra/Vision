@@ -9,7 +9,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { api, ApiError, mediaHref } from '../../lib/api'
 import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
 import { blobToBase64 } from '../../recorder/speech'
-import type { AppNotification, Client, Comment, ID, Page, PersonInput, Transcript, Video, View } from '../types'
+import type { AppNotification, Client, Comment, ID, Page, PersonInput, Quality, Transcript, Video, View } from '../types'
 
 interface CacheDB extends DBSchema {
   parts: { key: [ID, number]; value: { videoId: ID; index: number; data: Blob; savedAt: number }; indexes: { byVideo: ID } }
@@ -35,7 +35,8 @@ const store = {
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-type VideoWithUrl = Video & { playbackUrl?: string }
+type VideoWithUrl = Video & { playbackUrl?: string; qualities?: Quality[] }
+const absolute = (list: Quality[] | undefined) => (list ?? []).map((q) => ({ ...q, url: mediaHref(q.url) }))
 
 export class RemoteRepository implements Repository {
   private cache: Promise<IDBPDatabase<CacheDB>>
@@ -43,6 +44,7 @@ export class RemoteRepository implements Repository {
   private audioUploads = new Map<ID, Promise<void>>()
   private failures = new Map<ID, unknown>()
   private playback = new Map<ID, string>()
+  private qualities = new Map<ID, Quality[]>()
   private tokens = new Map<ID, string>()
   /** Lien personnel (?p=) utilisé pour ouvrir chaque page client. */
   private keys = new Map<string, string>()
@@ -122,6 +124,7 @@ export class RemoteRepository implements Repository {
     try {
       const v = await api<VideoWithUrl>(`videos/${id}`)
       if (v.playbackUrl) this.playback.set(id, mediaHref(v.playbackUrl))
+      this.qualities.set(id, absolute(v.qualities))
       return v
     } catch {
       return null
@@ -131,9 +134,10 @@ export class RemoteRepository implements Repository {
   async getShared(token: string, key?: string | null): Promise<SharedResult | null> {
     if (key) this.keys.set(token, key)
     try {
-      const r = await this.share<{ video: Video; clients: Client[]; playbackUrl: string; me: { id: ID; name: string } | null }>(token, '')
+      const r = await this.share<{ video: Video; clients: Client[]; playbackUrl: string; qualities?: Quality[]; me: { id: ID; name: string } | null }>(token, '')
       this.tokens.set(r.video.id, token)
       this.playback.set(r.video.id, mediaHref(r.playbackUrl))
+      this.qualities.set(r.video.id, absolute(r.qualities))
       return { video: r.video, clients: r.clients, me: r.me }
     } catch (e) {
       if (e instanceof ApiError && e.status === 403 && (e.data.locked === 'code' || e.data.locked === 'private'))
@@ -207,14 +211,14 @@ export class RemoteRepository implements Repository {
   }
 
   // --- Transcription -------------------------------------------------------------------------
-  appendAudio(videoId: ID, index: number, start: number, wav: Blob) {
+  appendAudio(videoId: ID, index: number, start: number, wav: Blob, voices?: string) {
     // L'une après l'autre, en arrière-plan, avec nouvelles tentatives ; n'attend jamais l'enregistrement.
     const previous = this.audioUploads.get(videoId) ?? Promise.resolve()
     const next = previous.then(async () => {
       const audio = await blobToBase64(wav)
       for (let attempt = 0; ; attempt++) {
         try {
-          await api(`videos/${videoId}/audio/${index}?start=${start.toFixed(3)}`, { method: 'PUT', body: audio, headers: { 'content-type': 'text/plain' } })
+          await api(`videos/${videoId}/audio/${index}?start=${start.toFixed(3)}`, { method: 'PUT', body: audio, headers: { 'content-type': 'text/plain', ...(voices ? { 'x-voices': voices } : {}) } })
           return
         } catch (e) {
           if (e instanceof ApiError && [400, 401, 403, 404, 413].includes(e.status)) return
@@ -234,6 +238,53 @@ export class RemoteRepository implements Repository {
 
   retryTranscript(videoId: ID) {
     return api<Transcript>(`videos/${videoId}/transcript/retry`, { method: 'POST' })
+  }
+
+  // --- Qualités et archivage -----------------------------------------------------------------
+  async getQualities(videoId: ID) {
+    if (!this.qualities.has(videoId)) await this.getVideo(videoId)
+    return this.qualities.get(videoId) ?? []
+  }
+
+  async getLocalFile(videoId: ID) {
+    const parts = await (await this.cache).getAllFromIndex('parts', 'byVideo', videoId)
+    if (!parts.length) return null
+    parts.sort((a, b) => a.index - b.index)
+    // Seulement si tous les morceaux sont là (sinon on lira l'original en ligne).
+    if (parts.some((p, i) => p.index !== i)) return null
+    const video = await this.getVideo(videoId)
+    if (!video || video.chunkCount !== parts.length) return null
+    return new Blob(parts.map((p) => p.data), { type: 'video/mp4' })
+  }
+
+  async startRendition(videoId: ID, quality: number) {
+    await api(`videos/${videoId}/renditions/${quality}`, { method: 'POST' })
+  }
+
+  async appendRenditionPart(videoId: ID, quality: number, index: number, data: Blob) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await api(`videos/${videoId}/renditions/${quality}/parts/${index}`, { method: 'PUT', body: data })
+        return
+      } catch (e) {
+        if ((e instanceof ApiError && [400, 401, 403, 404, 409].includes(e.status)) || attempt >= 6) throw e
+        await sleep(Math.min(30_000, 1000 * 2 ** attempt))
+      }
+    }
+  }
+
+  async completeRendition(videoId: ID, quality: number) {
+    const { qualities } = await api<{ qualities: Quality[] }>(`videos/${videoId}/renditions/${quality}/complete`, { method: 'POST' })
+    const list = absolute(qualities)
+    this.qualities.set(videoId, list)
+    return list
+  }
+
+  async setArchived(videoId: ID, archived: boolean) {
+    const v = await api<Video>(`videos/${videoId}/${archived ? 'archive' : 'unarchive'}`, { method: 'POST' })
+    this.qualities.delete(videoId)
+    this.playback.delete(videoId)
+    return v
   }
 
   // --- Lecture -------------------------------------------------------------------------------

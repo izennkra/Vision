@@ -13,6 +13,8 @@ export const SCHEMA = [
   "CREATE INDEX IF NOT EXISTS views_viewer ON views (viewer_id)",
   "CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, type TEXT NOT NULL, video_id TEXT NOT NULL, video_title TEXT NOT NULL, actor TEXT NOT NULL, text TEXT, created_at TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0 )",
   "CREATE INDEX IF NOT EXISTS notifications_created ON notifications (created_at DESC)",
-  "CREATE TABLE IF NOT EXISTS transcript_chunks ( video_id TEXT NOT NULL, idx INTEGER NOT NULL, start REAL NOT NULL, status TEXT NOT NULL, language TEXT, cues TEXT NOT NULL DEFAULT '[]', PRIMARY KEY (video_id, idx) )",
+  "CREATE TABLE IF NOT EXISTS transcript_chunks ( video_id TEXT NOT NULL, idx INTEGER NOT NULL, start REAL NOT NULL, status TEXT NOT NULL, language TEXT, cues TEXT NOT NULL DEFAULT '[]', voices TEXT, PRIMARY KEY (video_id, idx) )",
   "CREATE TABLE IF NOT EXISTS transcript_translations ( video_id TEXT NOT NULL, idx INTEGER NOT NULL, lang TEXT NOT NULL, cues TEXT NOT NULL, PRIMARY KEY (video_id, idx, lang) )",
+  "CREATE TABLE IF NOT EXISTS renditions ( video_id TEXT NOT NULL, quality INTEGER NOT NULL, object_key TEXT NOT NULL, upload_id TEXT, status TEXT NOT NULL, size INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (video_id, quality) )",
+  "CREATE TABLE IF NOT EXISTS rendition_parts ( video_id TEXT NOT NULL, quality INTEGER NOT NULL, idx INTEGER NOT NULL, etag TEXT NOT NULL, size INTEGER NOT NULL, PRIMARY KEY (video_id, quality, idx) )",
 ]

@@ -320,6 +320,18 @@ function VideoCard({ video, showClient, clients, onOpen, onChange, onMove, onDel
       ],
     },
     ...(video.chunkCount > 0 ? [{ label: 'Télécharger', onSelect: () => downloadVideo(video) }] : []),
+    {
+      label: video.archived ? 'Désarchiver' : 'Archiver',
+      onSelect: async () => {
+        toast(video.archived ? 'Désarchivage…' : 'Archivage…')
+        try {
+          onChange(await repo.setArchived(video.id, !video.archived))
+          toast(video.archived ? 'Vidéo désarchivée' : 'Vidéo archivée : stockage moins cher, toujours lisible')
+        } catch {
+          toast('Impossible pour le moment, réessayez')
+        }
+      },
+    },
     'separator',
     { label: 'Supprimer', confirm: 'Confirmer la suppression', danger: true, onSelect: onDelete },
   ]
@@ -339,7 +351,8 @@ function VideoCard({ video, showClient, clients, onOpen, onChange, onMove, onDel
       <div className="ds-card" onClick={() => !renaming && onOpen()}>
         <div className="ds-card__thumb">
           <Thumbnail thumbKey={video.thumbnailKey} />
-          {video.status !== 'published' && (
+          {video.archived && <span className="dash__draft dash__archived" title="Stockage moins cher ; la vidéo reste lisible">Archivée</span>}
+          {!video.archived && video.status !== 'published' && (
             <span className="dash__draft" title="Pas encore partagée : le client ne peut pas la voir">Brouillon</span>
           )}
           <button

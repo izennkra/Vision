@@ -77,6 +77,8 @@ export interface Video {
   hasCode?: boolean
   /** Personnes prévues (« Anonyme » est toujours proposé en plus). */
   people?: Person[]
+  /** Archivée : stockage moins cher, toujours lisible. */
+  archived?: boolean
   /** Dimensions de l'image enregistrée (pour adapter le lecteur au format). */
   width?: number
   height?: number
@@ -146,6 +148,8 @@ export interface Cue {
   start: number
   end: number
   text: string
+  /** Qui parle : « me » (le propriétaire, au micro) ou « other » (le son de l'appel). Absent : pas de séparation. */
+  speaker?: 'me' | 'other'
 }
 
 /** Transcription d'une vidéo (dans sa langue d'origine ou traduite). */
@@ -161,4 +165,12 @@ export interface Transcript {
   partial?: boolean
   /** Tranches qui n'ont pas pu être transcrites (le propriétaire peut relancer). */
   failed?: number
+}
+
+/** Une qualité de lecture : l'original ou une version allégée (720p, 480p). */
+export interface Quality {
+  label: string
+  /** Petit côté de l'image, en pixels. */
+  height: number
+  url: string
 }

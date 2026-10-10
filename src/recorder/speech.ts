@@ -10,7 +10,7 @@ const WINDOW = RATE / 20 // fenêtres de 50 ms pour mesurer le volume
 /** En dessous (≈ -50 dB), la tranche est un silence : inutile de l'envoyer. */
 const SILENCE_RMS = 0.003
 
-export type SendChunk = (index: number, start: number, wav: Blob) => void
+export type SendChunk = (index: number, start: number, wav: Blob, length: number) => void
 
 export class SpeechChunker {
   private parts: Float32Array[] = []
@@ -91,7 +91,7 @@ export class SpeechChunker {
     for (let i = 0; i < chunk.length; i++) energy += chunk[i] * chunk[i]
     if (Math.sqrt(energy / Math.max(1, chunk.length)) >= SILENCE_RMS) {
       this.sent++
-      this.send(index, start, toWav(chunk))
+      this.send(index, start, toWav(chunk), chunk.length / RATE)
     }
     const rest = samples.slice(at)
     this.parts = rest.length ? [rest] : []

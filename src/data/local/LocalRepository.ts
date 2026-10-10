@@ -342,6 +342,28 @@ export class LocalRepository implements Repository {
   }
 
   // --- Lecture --------------------------------------------------------------
+  // Qualités et archivage : la version locale garde seulement l'original.
+  async getQualities(): Promise<import('../types').Quality[]> {
+    return []
+  }
+  async getLocalFile() {
+    return null
+  }
+  async startRendition() {
+    throw new Error('Disponible dans la version en ligne')
+  }
+  async appendRenditionPart() {}
+  async completeRendition(): Promise<import('../types').Quality[]> {
+    return []
+  }
+  async setArchived(videoId: ID, archived: boolean) {
+    return this.updateVideo(videoId, {}).then(async (v) => {
+      const updated = { ...v, archived }
+      await (await this.dbp).put('videos', updated)
+      return updated
+    })
+  }
+
   // Transcription : seulement dans la version en ligne (Workers AI). Ici, une démonstration pour la première vidéo.
   appendAudio() {}
 

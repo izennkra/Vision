@@ -3,7 +3,7 @@
 // repères des commentaires), lecture/pause, volume, durée « 0:00 / 3:00 », réglages, sous-titres,
 // vitesse (x1 à x3) et plein écran. Raccourcis : espace, ← →, ↑ ↓, M, F, C.
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import type { Cue } from '../data'
+import type { Cue, Quality } from '../data'
 import { clock } from '../lib/format'
 import { LANGUAGES } from '../lib/languages'
 import {
@@ -30,6 +30,26 @@ interface Props {
   onCaptionLang?: (code: string) => void
   onFirstPlay?: () => void
   onProgress?: (ratio: number, seconds: number) => void
+  /** Qualités disponibles (original + versions allégées) ; vide : seulement `src`. */
+  qualities?: Quality[]
+  /** Propriétaire : préparer les versions 720p et 480p manquantes. */
+  onPrepareQualities?: () => void
+  /** Préparation en cours (0 à 1), null sinon. */
+  preparing?: number | null
+}
+
+/**
+ * Qualité « Auto » : sur ordinateur, l'original (aucune perte de netteté) ; sur téléphone, la plus petite
+ * qui reste nette à la taille de l'écran ; la plus légère si la connexion est lente ou en mode économie.
+ */
+function autoQuality(qualities: Quality[], box: HTMLElement | null) {
+  const sorted = [...qualities].sort((a, b) => a.height - b.height)
+  const best = sorted[sorted.length - 1]
+  const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  if (conn?.saveData || /(^|-)(2g|3g)$/.test(conn?.effectiveType ?? '')) return sorted[0]
+  if (!matchMedia('(pointer: coarse)').matches) return best
+  const need = (box?.clientHeight ?? 540) * Math.min(3, devicePixelRatio || 1)
+  return sorted.find((q) => q.height >= need) ?? best
 }
 
 const SPEEDS = [1, 1.25, 1.5, 1.75, 2, 2.5, 3]
@@ -54,7 +74,10 @@ const store = (k: string, v: number | string) => {
 type Menu = null | 'speed' | 'settings'
 
 export const Player = forwardRef<PlayerHandle, Props>(function Player(
-  { src, poster, knownDuration = 0, aspect: knownAspect, markers = [], captions = null, captionLang, onCaptionLang, onFirstPlay, onProgress },
+  {
+    src: originalSrc, poster, knownDuration = 0, aspect: knownAspect, markers = [], captions = null, captionLang, onCaptionLang, onFirstPlay, onProgress,
+    qualities = [], onPrepareQualities, preparing = null,
+  },
   ref,
 ) {
   const box = useRef<HTMLDivElement>(null)
@@ -72,6 +95,34 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const [speed, setSpeed] = useState(() => (SPEEDS.includes(stored('visions:speed', 1)) ? stored('visions:speed', 1) : 1))
   const [cc, setCc] = useState(() => stored('visions:cc', 0) === 1)
   const [menu, setMenu] = useState<Menu>(null)
+  const [allLangs, setAllLangs] = useState(false)
+  // Qualité choisie (« auto » par défaut, retenue pour les prochaines vidéos).
+  const [qualityPref, setQualityPref] = useState<string>(() => {
+    try {
+      return localStorage.getItem('visions:quality') ?? 'auto'
+    } catch {
+      return 'auto'
+    }
+  })
+  const [autoPick, setAutoPick] = useState<Quality | null>(null)
+  useEffect(() => {
+    if (qualities.length > 1) setAutoPick(autoQuality(qualities, box.current))
+  }, [qualities])
+  const chosen = qualities.length > 1 ? (qualities.find((q) => q.label === qualityPref) ?? autoPick ?? qualities[0]) : null
+  const src = chosen?.url ?? originalSrc
+  // Changer de qualité : on reprend au même moment, en lecture si elle était en cours.
+  const resumeAt = useRef<{ time: number; play: boolean } | null>(null)
+  const chooseQuality = (label: string) => {
+    const v = video.current
+    if (v && started) resumeAt.current = { time: v.currentTime, play: !v.paused }
+    setQualityPref(label)
+    try {
+      localStorage.setItem('visions:quality', label)
+    } catch {
+      /* navigation privée */
+    }
+    setMenu(null)
+  }
   const [isFull, setIsFull] = useState(false)
   const [hover, setHover] = useState<{ x: number; t: number } | null>(null)
   const dragging = useRef(false)
@@ -124,6 +175,12 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     const v = video.current
     if (!v) return
     v.playbackRate = speed
+    const resume = resumeAt.current
+    if (resume) {
+      resumeAt.current = null
+      v.currentTime = resume.time
+      if (resume.play) void v.play().catch(() => {})
+    }
     if (v.videoWidth && v.videoHeight) setAspect(v.videoWidth / v.videoHeight)
     if (Number.isFinite(v.duration)) return setDuration(v.duration)
     const restore = v.currentTime
@@ -366,12 +423,38 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       )}
       {menu === 'settings' && (
         <div className="player__menu" role="menu">
+          {(qualities.length > 1 || onPrepareQualities || preparing !== null) && (
+            <>
+              <div className="player__menu-title">Qualité</div>
+              {qualities.length > 1 && (
+                <>
+                  <button className="player__menu-item" onClick={() => chooseQuality('auto')}>
+                    Auto{autoPick ? ` (${autoPick.label})` : ''}
+                    {qualityPref === 'auto' && <IconCheck size={12} />}
+                  </button>
+                  {qualities.map((q) => (
+                    <button key={q.label} className="player__menu-item" onClick={() => chooseQuality(q.label)}>
+                      {q.label}
+                      {qualityPref === q.label && <IconCheck size={12} />}
+                    </button>
+                  ))}
+                </>
+              )}
+              {preparing !== null ? (
+                <div className="player__menu-note">Préparation des versions allégées… {Math.round(preparing * 100)} %</div>
+              ) : onPrepareQualities ? (
+                <button className="player__menu-item player__menu-action" onClick={() => (onPrepareQualities(), setMenu(null))}>
+                  Préparer 720p et 480p
+                </button>
+              ) : null}
+            </>
+          )}
           <div className="player__menu-title">Sous-titres</div>
           <button className="player__menu-item" onClick={() => (setCc(false), store('visions:cc', 0), setMenu(null))}>
             Désactivés{!cc && <IconCheck size={12} />}
           </button>
           {captions?.length
-            ? LANGUAGES.map((l) => (
+            ? (allLangs ? LANGUAGES : LANGUAGES.filter((l, i) => i < 3 || l.code === captionLang)).map((l) => (
                 <button
                   key={l.code}
                   className="player__menu-item"
@@ -387,6 +470,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                 </button>
               ))
             : <div className="player__menu-note">Pas encore de transcription</div>}
+          {captions?.length && !allLangs ? (
+            <button className="player__menu-item player__menu-more" onClick={() => setAllLangs(true)}>Plus de langues…</button>
+          ) : null}
           <div className="player__menu-title">Vitesse</div>
           <div className="player__menu-speeds">
             {SPEEDS.map((s) => (

@@ -4,7 +4,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { owner } from '../config'
-import { repo, type Client, type Comment, type ID, type Transcript, type Video } from '../data'
+import { repo, type Client, type Comment, type ID, type Quality, type Transcript, type Video } from '../data'
+import { cloud } from '../lib/api'
+import { prepareQualities, TARGETS, useQualityJob } from '../lib/renditions'
 import type { SharedResult } from '../data/repository'
 import { ANONYMOUS, Comments, initialsOf } from '../components/Comments'
 import { PeopleContext } from '../components/Initials'
@@ -38,6 +40,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const [clients, setClients] = useState<Client[]>([])
   const [comments, setComments] = useState<Comment[]>([])
   const [src, setSrc] = useState('')
+  const [qualities, setQualities] = useState<Quality[]>([])
   const [poster, setPoster] = useState<string | null>(null)
   const [viewer, setViewer] = useState<string | null>(isOwner ? owner.fullName : null)
   const [me, setMe] = useState<{ id: ID; name: string } | null>(null)
@@ -97,6 +100,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
         repo.listComments(v.id),
         repo.getPlaybackUrl(v.id),
         v.thumbnailKey ? repo.getThumbnail(v.thumbnailKey) : null,
+        repo.getQualities(v.id).then(setQualities),
       ])
       if (cancelled) return
       setClients(all)
@@ -130,6 +134,28 @@ export default function VideoPage({ mode }: { mode: Mode }) {
       window.clearTimeout(timer)
     }
   }, [videoId, lang])
+
+  // Versions allégées (720p, 480p) : préparées par le navigateur du propriétaire, en arrière-plan.
+  const job = useQualityJob(isOwner ? videoId : undefined)
+  useEffect(() => {
+    if (job?.status === 'done' && job.qualities) setQualities(job.qualities)
+  }, [job])
+  const shortSide = video ? Math.min(video.width ?? 1920, video.height ?? 1080) : 0
+  const missingQualities =
+    isOwner && cloud && !!video && !video.archived && video.status !== 'recording' && !!src &&
+    TARGETS.some((t) => t.height < shortSide - 40 && !qualities.some((q) => q.height === t.height))
+  const startQualities = useCallback(() => {
+    if (videoId && src) void prepareQualities(videoId, src)
+  }, [videoId, src])
+  // Juste après l'enregistrement, le fichier est encore dans ce navigateur : on prépare tout seul.
+  useEffect(() => {
+    if (!missingQualities || job || !videoId) return
+    let cancelled = false
+    repo.getLocalFile(videoId).then((f) => !cancelled && f && startQualities())
+    return () => {
+      cancelled = true
+    }
+  }, [missingQualities, job, videoId, startQualities])
 
   const update = useCallback(
     async (patch: Parameters<typeof repo.updateVideo>[1]) => {
@@ -289,6 +315,9 @@ export default function VideoPage({ mode }: { mode: Mode }) {
               captionLang={transcript?.lang ?? null}
               onCaptionLang={setLang}
               onFirstPlay={onFirstPlay}
+              qualities={qualities}
+              onPrepareQualities={missingQualities && job?.status !== 'running' ? startQualities : undefined}
+              preparing={job?.status === 'running' ? job.progress : null}
               onProgress={onProgress}
             />
           </div>

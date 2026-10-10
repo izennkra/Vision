@@ -59,11 +59,13 @@ npx wrangler d1 migrations apply visions --local
 npm run dev:cloud                         # http://localhost:8787 (transcription factice : Workers AI n'existe pas hors ligne)
 ```
 
-## Archivage (facultatif)
+## Économiser la place
 
-Les vidéos ne coûtent presque rien à garder, donc rien n'est supprimé. Si tu veux réduire encore le coût des vidéos de plus de 30 jours, tu peux leur appliquer la classe de stockage « accès peu fréquent » de R2 (0,01 $ par Go et par mois au lieu de 0,015 $, mais 0,01 $ par Go à chaque visionnage) :
-R2 → `visions-videos` → **Settings → Object lifecycle rules** → **Add rule** → préfixe `videos/` → *Transition to Infrequent Access after 30 days*.
-Les vidéos archivées restent visibles normalement par leur lien.
+Ordre de grandeur : une heure d'écran enregistrée pèse environ 0,4 à 1,1 Go (l'encodeur dépense moins quand l'écran bouge peu). Les versions 720p et 480p ajoutent environ la moitié de ce poids, mais rendent la lecture plus rapide sur téléphone.
+
+- **Archiver** (clic droit sur une carte) : le fichier d'origine passe en stockage « accès peu fréquent » (0,01 $ par Go et par mois au lieu de 0,015 $) et les versions allégées sont supprimées. La vidéo reste lisible tout de suite, dans sa qualité d'origine ; chaque visionnage d'une vidéo archivée coûte 0,01 $ par Go lu. À réserver aux vidéos qu'on ne regarde plus (durée minimale facturée : 30 jours).
+- **Automatiquement** (facultatif) : R2 → `visions-videos` → **Settings → Object lifecycle rules** → **Add rule** → préfixe `videos/` → *Transition to Infrequent Access after 30 days*.
+- Exemple : 100 heures de vidéos ≈ 80 Go ≈ 1,20 $ par mois en standard, 0,80 $ archivées. Les 10 premiers Go sont gratuits.
 
 ## Et Vercel ?
 

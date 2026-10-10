@@ -4,7 +4,7 @@
 // Étape 2 : implémentation Cloudflare (R2 pour les vidéos, base de données pour le reste)
 // qui respecte la même interface — les écrans ne changent pas.
 
-import type { Access, AppNotification, Client, Comment, ID, Page, PersonInput, Transcript, Video, View } from './types'
+import type { Access, AppNotification, Client, Comment, ID, Page, PersonInput, Quality, Transcript, Video, View } from './types'
 
 export interface VideoQuery {
   /** Dossier : inclut les vidéos de ses sous-dossiers. */
@@ -67,8 +67,18 @@ export interface Repository {
   ): Promise<Video>
 
   // Transcription : tranches de son envoyées pendant l'enregistrement, puis lecture (éventuellement traduite).
-  appendAudio(videoId: ID, index: number, start: number, wav: Blob): void
+  /** `voices` : qui parle, un caractère par 100 ms (m : propriétaire au micro, s : son de l'écran, - : silence). */
+  appendAudio(videoId: ID, index: number, start: number, wav: Blob, voices?: string): void
   getTranscript(videoId: ID, lang?: string | null): Promise<Transcript>
+
+  // Qualités de lecture (original + versions allégées) et archivage.
+  getQualities(videoId: ID): Promise<Quality[]>
+  /** Fichier d'origine encore gardé dans ce navigateur (juste après l'enregistrement), sinon null. */
+  getLocalFile(videoId: ID): Promise<Blob | null>
+  startRendition(videoId: ID, quality: number): Promise<void>
+  appendRenditionPart(videoId: ID, quality: number, index: number, data: Blob): Promise<void>
+  completeRendition(videoId: ID, quality: number): Promise<Quality[]>
+  setArchived(videoId: ID, archived: boolean): Promise<Video>
   retryTranscript(videoId: ID): Promise<Transcript>
 
   // Lecture

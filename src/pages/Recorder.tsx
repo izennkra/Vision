@@ -9,6 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { repo } from '../data'
 import { useContextMenu, type MenuItem } from '../components/ContextMenu'
 import { IconCamera, IconFilter, IconGrip, IconMic, IconPause, IconPlay, IconRestart, IconWindow } from '../components/icons'
+import { cancelAllQualities } from '../lib/renditions'
 import { useToast } from '../components/Toast'
 import { clock } from '../lib/format'
 import * as sounds from '../recorder/sounds'
@@ -70,6 +71,10 @@ export default function Recorder() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [active])
   useEffect(() => () => void session.current?.cancel(), [])
+  // Priorité à l'enregistrement : on arrête la préparation des versions allégées en arrière-plan.
+  useEffect(() => {
+    void cancelAllQualities()
+  }, [])
 
   const stop = useCallback(async () => {
     const s = session.current
