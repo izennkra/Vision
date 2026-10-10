@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { repo, type Video, type View } from '../data'
 import { clock, plural, timeAgo } from '../lib/format'
-import { initialsOf } from './Comments'
+import { Initials } from './Initials'
 import { IconEye } from './icons'
 
 interface Viewer {
@@ -67,7 +67,7 @@ export function ViewsChip({ video }: { video: Video }) {
           <ul className="viewers__list">
             {viewers?.map((v) => (
               <li key={v.id} className="viewers__row">
-                <span className="ds-initials">{v.name === 'Anonyme' ? '?' : initialsOf(v.name)}</span>
+                <Initials name={v.name} />
                 <div className="viewers__text">
                   <div className="viewers__name">{v.name}</div>
                   <div className="viewers__meta">

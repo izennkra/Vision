@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { api, saveSession } from '../lib/api'
-import './login.css'
+import '../styles/entry.css'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -28,21 +28,27 @@ export default function Login() {
   }
 
   return (
-    <div className="login">
-      <form className="login__box" onSubmit={submit}>
-        <Logo />
-        <h1 className="login__title">Connexion à Visions</h1>
-        <input
-          className="login__field"
-          type="password"
-          autoFocus
-          autoComplete="current-password"
-          placeholder="Mot de passe"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button className="ds-btn-primary login__go" disabled={busy}>{busy ? 'Connexion…' : 'Entrer'}</button>
-        <p className="login__error" role="alert">{error}</p>
+    <div className="entry entry--login">
+      <div className="entry__logo"><Logo /></div>
+      <form className="entry__form" onSubmit={submit}>
+        <div className="entry__card">
+          <h1 className="entry__title">Connexion à<span className="ds-accent-link">Visions</span></h1>
+          <input
+            className="entry__field"
+            type="password"
+            autoFocus
+            autoComplete="current-password"
+            placeholder="Mot de passe"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              setError(null)
+            }}
+            aria-label="Mot de passe"
+          />
+        </div>
+        <button className="entry__go" disabled={busy || !password}>{busy ? '...' : 'Entrer'}</button>
+        <p className="entry__error" role="alert">{error}</p>
       </form>
     </div>
   )

@@ -9,6 +9,7 @@ Une fois en ligne, les vidéos sont stockées sur Cloudflare : tu les regardes d
 | **R2** | les fichiers vidéo et les vignettes | 10 Go gratuits, puis **0,015 $ par Go et par mois** ; la bande passante (les visionnages) est **gratuite** |
 | **D1** | titres, dossiers, commentaires, vues, notifications | gratuit (5 Go) |
 | **Workers** | le serveur et l'application | gratuit jusqu'à 100 000 requêtes par jour |
+| **Workers AI** | transcription (Whisper) et traduction | allocation gratuite chaque jour (environ 3 h 30 de son transcrit) ; Whisper coûte ensuite 0,0005 $ par minute. Avec l'offre gratuite de Workers, rien n'est facturé : au-delà de l'allocation du jour, la transcription échoue et peut être relancée le lendemain depuis l'onglet « Transcription » |
 
 Ordre de grandeur : une vidéo de 1 h 30 pèse entre 0,6 et 1,7 Go. **100 vidéos de 20 minutes ≈ 30 Go ≈ 0,30 $ par mois.** Il n'y a pas besoin d'archiver ou de supprimer les vieilles vidéos pour faire des économies (voir « Archivage » plus bas si tu veux aller plus loin).
 
@@ -46,12 +47,16 @@ npx wrangler secret put SESSION_SECRET    # par exemple : openssl rand -base64 4
 npm run deploy
 ```
 
+## Transcription
+
+Rien à configurer : le lien vers Workers AI est déclaré dans `wrangler.jsonc` (`"ai": { "binding": "AI" }`) et créé au déploiement. Les tranches de son sont gardées dans R2 (`audio/…`) pour pouvoir relancer une transcription ; elles sont supprimées avec la vidéo.
+
 ## Tester en local avant de déployer
 
 ```bash
 cp .dev.vars.example .dev.vars            # mot de passe local : change-moi
 npx wrangler d1 migrations apply visions --local
-npm run dev:cloud                         # http://localhost:8787
+npm run dev:cloud                         # http://localhost:8787 (transcription factice : Workers AI n'existe pas hors ligne)
 ```
 
 ## Archivage (facultatif)

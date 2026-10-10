@@ -4,15 +4,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { owner } from '../config'
-import { repo, type Client, type Comment, type ID, type Video } from '../data'
+import { repo, type Client, type Comment, type ID, type Transcript, type Video } from '../data'
 import type { SharedResult } from '../data/repository'
 import { ANONYMOUS, Comments, initialsOf } from '../components/Comments'
 import { InlineEdit } from '../components/InlineEdit'
 import { Logo } from '../components/Logo'
 import { Player, type PlayerHandle } from '../components/Player'
 import { useContextMenu } from '../components/ContextMenu'
-import { IconBack, IconCheck, IconInfo, IconLink, IconLock } from '../components/icons'
+import { IconBack, IconCheck, IconInfo, IconLink } from '../components/icons'
 import { SharePanel } from '../components/SharePanel'
+import { AccessGate } from '../components/AccessGate'
+import { TranscriptView } from '../components/TranscriptView'
 import { ViewsChip } from '../components/Viewers'
 import { clientLabel, folderTree } from '../lib/clients'
 import { timeAgo } from '../lib/format'
@@ -42,6 +44,10 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const [panel, setPanel] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [now, setNow] = useState(0)
+  const [time, setTime] = useState(0)
+  const [tab, setTab] = useState<'comments' | 'transcript'>('comments')
+  const [transcript, setTranscript] = useState<Transcript | null>(null)
+  const [lang, setLang] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [copied, flash] = useCopied(1600)
   const player = useRef<PlayerHandle>(null)
@@ -104,6 +110,25 @@ export default function VideoPage({ mode }: { mode: Mode }) {
     // urlKey : lu une seule fois au chargement (l'adresse est nettoyée juste après).
   }, [id, token, isOwner, reload])
 
+  // Transcription (et sous-titres) : rechargée tant qu'elle est en cours ou que la traduction n'est pas finie.
+  const videoId = video?.id
+  useEffect(() => {
+    if (!videoId) return
+    let cancelled = false
+    let timer: number | undefined
+    const load = async () => {
+      const t = await repo.getTranscript(videoId, lang).catch(() => null)
+      if (cancelled) return
+      if (t) setTranscript(t)
+      if (t && (t.status === 'pending' || t.partial)) timer = window.setTimeout(load, t.partial ? 1500 : 6000)
+    }
+    void load()
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [videoId, lang])
+
   const update = useCallback(
     async (patch: Parameters<typeof repo.updateVideo>[1]) => {
       const v = await repo.updateVideo(video!.id, patch)
@@ -129,6 +154,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   }
   const onProgress = (ratio: number, seconds: number) => {
     setNow(Math.floor(seconds))
+    setTime(seconds)
     if (!viewId.current || ratio < lastRatio.current + 0.05) return
     lastRatio.current = ratio
     repo.updateView(viewId.current, ratio)
@@ -254,6 +280,9 @@ export default function VideoPage({ mode }: { mode: Mode }) {
               knownDuration={video.duration}
               aspect={video.width && video.height ? video.width / video.height : undefined}
               markers={comments.filter((c) => c.timestamp !== null).map((c) => c.timestamp!)}
+              captions={transcript?.cues.length ? transcript.cues : null}
+              captionLang={transcript?.lang ?? null}
+              onCaptionLang={setLang}
               onFirstPlay={onFirstPlay}
               onProgress={onProgress}
             />
@@ -276,6 +305,12 @@ export default function VideoPage({ mode }: { mode: Mode }) {
         </section>
       </main>
 
+      <aside className="side">
+        <div className="side__tabs" role="tablist">
+          <button role="tab" aria-selected={tab === 'comments'} className={tab === 'comments' ? 'is-on' : ''} onClick={() => setTab('comments')}>Commentaires</button>
+          <button role="tab" aria-selected={tab === 'transcript'} className={tab === 'transcript' ? 'is-on' : ''} onClick={() => setTab('transcript')}>Transcription</button>
+        </div>
+        <div className="side__panel" hidden={tab !== 'comments'}>
       <Comments
         comments={comments}
         author={isOwner ? owner.fullName : me?.name ?? (video.people?.length ? null : viewer)}
@@ -307,6 +342,21 @@ export default function VideoPage({ mode }: { mode: Mode }) {
           setComments((list) => list.filter((c) => c.id !== cid && c.parentId !== cid))
         }}
       />
+        </div>
+        {tab === 'transcript' && (
+          <div className="side__panel">
+            <TranscriptView
+              transcript={transcript}
+              lang={lang}
+              onLang={setLang}
+              now={time}
+              onSeek={(t) => player.current?.seek(t)}
+              canRetry={isOwner}
+              onRetry={async () => setTranscript(await repo.retryTranscript(video.id))}
+            />
+          </div>
+        )}
+      </aside>
 
       {panel && isOwner && (
         <SharePanel
@@ -319,60 +369,6 @@ export default function VideoPage({ mode }: { mode: Mode }) {
           }}
         />
       )}
-    </div>
-  )
-}
-
-/** Page client verrouillée : code d'accès, ou invitation nécessaire (vidéo privée). */
-function AccessGate({ lock, onUnlock, onDone }: { lock: Lock; onUnlock: (code: string) => Promise<boolean>; onDone: () => void }) {
-  const [code, setCode] = useState('')
-  const [error, setError] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const isPrivate = lock.locked === 'private'
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!code.trim() || busy) return
-    setBusy(true)
-    const ok = await onUnlock(code)
-    setBusy(false)
-    if (ok) onDone()
-    else setError(true)
-  }
-  return (
-    <div className="gate">
-      <div className="gate__logo"><Logo /></div>
-      <div className="gate__card">
-        <span className="gate__icon"><IconLock size={20} /></span>
-        <h1 className="gate__title">{isPrivate ? 'Vidéo privée' : 'Vidéo protégée'}</h1>
-        <p className="gate__text">
-          {isPrivate && !lock.codeAllowed
-            ? 'Cette vidéo est réservée aux personnes invitées. Ouvrez le lien personnel reçu par e-mail.'
-            : isPrivate
-              ? 'Ouvrez le lien personnel reçu par e-mail, ou entrez le code d’accès.'
-              : 'Entrez le code d’accès pour regarder la vidéo.'}
-        </p>
-        {lock.codeAllowed && (
-          <form className="gate__form" onSubmit={submit}>
-            <input
-              className={`gate__input${error ? ' is-error' : ''}`}
-              value={code}
-              onChange={(e) => {
-                setCode(e.target.value.toUpperCase().replace(/\s/g, ''))
-                setError(false)
-              }}
-              placeholder="Code"
-              autoFocus
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              maxLength={32}
-              aria-label="Code d’accès"
-            />
-            <button className="gate__submit" disabled={!code.trim() || busy}>{busy ? '...' : 'Valider'}</button>
-          </form>
-        )}
-        {error && <p className="gate__error" role="alert">Code incorrect, vérifiez et réessayez.</p>}
-      </div>
     </div>
   )
 }

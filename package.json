@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "build:cloud": "VITE_STORAGE=cloud tsc -b && VITE_STORAGE=cloud vite build",
-    "dev:cloud": "npm run build:cloud && wrangler dev",
+    "dev:cloud": "npm run build:cloud && wrangler dev --config wrangler.local.jsonc",
     "deploy": "npm run build:cloud && wrangler deploy"
   },
   "dependencies": {

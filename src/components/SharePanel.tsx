@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Access, ID, Video } from '../data'
 import type { VideoPatch } from '../data/repository'
 import { inviteMailto, newAccessCode, personalUrl, shareUrl } from '../lib/share'
-import { initialsOf } from './Comments'
+import { Initials } from './Initials'
 import { IconCheck, IconClose, IconCopy, IconGlobe, IconLink, IconLock, IconMail, IconPlus, IconRefresh } from './icons'
 import { useToast } from './Toast'
 import './share-panel.css'
@@ -103,10 +103,13 @@ export function SharePanel({ video, onChange, onClose, onDelete }: Props) {
 
   const setAccess = (a: Access) => a !== access && onChange({ access: a })
   const toggleCode = () => onChange({ accessCode: video.accessCode ? null : newAccessCode() })
+  // Code de 6 caractères exactement (une case par caractère sur la page client).
   const saveCode = () => {
-    const c = code.trim().toUpperCase()
-    if (!c) return setCode(video.accessCode ?? '')
-    if (c !== video.accessCode) onChange({ accessCode: c })
+    if (code.length !== 6) {
+      if (code !== (video.accessCode ?? '')) toast('Le code doit faire 6 caractères')
+      return setCode(video.accessCode ?? '')
+    }
+    if (code !== video.accessCode) onChange({ accessCode: code })
   }
 
   const linkHint = !saved
@@ -135,7 +138,7 @@ export function SharePanel({ video, onChange, onClose, onDelete }: Props) {
               const p = personOf(r)
               return (
                 <li key={r.key} className="sp__person">
-                  <span className="ds-initials sp__initials">{initialsOf(r.name || '?')}</span>
+                  <Initials name={r.name} className="sp__initials" />
                   <div className="sp__fields">
                     <input
                       ref={(el) => {
@@ -179,7 +182,7 @@ export function SharePanel({ video, onChange, onClose, onDelete }: Props) {
               )
             })}
             <li className="sp__person is-anon">
-              <span className="ds-initials sp__initials">?</span>
+              <Initials name={null} className="sp__initials" />
               <div className="sp__fields"><span className="sp__anon">Anonyme</span></div>
               <span className="sp__anon-note">Toujours proposé</span>
             </li>
@@ -219,10 +222,10 @@ export function SharePanel({ video, onChange, onClose, onDelete }: Props) {
               <input
                 className="sp__input sp__code-input"
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s/g, ''))}
+                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
                 onBlur={saveCode}
                 onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                maxLength={32}
+                maxLength={6}
                 aria-label="Code d’accès"
               />
               <button className="ds-hover sp__icon" onClick={() => onChange({ accessCode: newAccessCode() })} title="Nouveau code" aria-label="Nouveau code">

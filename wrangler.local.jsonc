@@ -1,0 +1,27 @@
+// Version de test locale (npm run dev:cloud) : identique à wrangler.jsonc, sans Workers AI
+// (indisponible hors ligne) : la transcription y est remplacée par des phrases factices.
+// Déploiement Cloudflare de Visions : application + API + stockage.
+// Base D1 « visions » et stockage R2 « visions-videos » créés sur le compte Cloudflare (voir DEPLOIEMENT.md).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "visions",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "observability": { "enabled": true },
+  // Adresse publique visions.izenn-kra.workers.dev toujours active (et adresses de prévisualisation).
+  "workers_dev": true,
+  "preview_urls": true,
+  // L'application (dossier dist, construite avec « npm run build:cloud ») ; les routes /api et /media
+  // passent par le serveur, toutes les autres adresses renvoient l'application.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/media/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "visions", "database_id": "b1f1c761-3e6c-4e4c-8cf4-3d4d14e19967", "migrations_dir": "worker/migrations" }
+  ],
+  "r2_buckets": [{ "binding": "VIDEOS", "bucket_name": "visions-videos" }],
+  "vars": { "OWNER_NAME": "Izenn Kra", "AI_MOCK": "1" }
+}

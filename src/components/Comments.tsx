@@ -6,16 +6,11 @@ import { useDictation } from '../hooks/useDictation'
 import { clock, plural, timeAgo } from '../lib/format'
 import { useContextMenu } from './ContextMenu'
 import { IconCaretDown, IconCheck, IconMic, IconReply, IconSend } from './icons'
+import { Initials } from './Initials'
 
 export const ANONYMOUS = 'Anonyme'
 
-export const initialsOf = (name: string) =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('') || '?'
+export { initialsOf } from './Initials'
 
 interface Props {
   comments: Comment[]
@@ -126,7 +121,7 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
       }
     >
       <div className="ds-comment__head">
-        <span className="ds-initials">{c.authorInitials}</span>
+        <Initials name={c.authorName} />
         <span>{c.authorName}</span>
         {c.timestamp !== null && (
           <button className="ds-comment__time" onClick={() => onSeek(c.timestamp!)}>{clock(c.timestamp)}</button>
@@ -144,7 +139,7 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
   )
 
   return (
-    <aside className="comments">
+    <div className="comments">
       <div ref={list} className="comments__list">
         <div className="comments__inner">{roots.map((c) => item(c))}</div>
       </div>
@@ -168,7 +163,7 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
             <div className="who__list">
               {[...profiles, ANONYMOUS].map((p) => (
                 <button key={p} className={`who__item${p === chosen ? ' is-on' : ''}${p === ANONYMOUS ? ' is-anon' : ''}`} onClick={() => choose(p)}>
-                  <span className="ds-initials">{p === ANONYMOUS ? '?' : initialsOf(p)}</span>
+                  <Initials name={p} />
                   <span className="who__name">{p}</span>
                   {p === chosen && <IconCheck size={14} />}
                 </button>
@@ -184,11 +179,11 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
               aria-label={chosen ? `Commenter en tant que ${chosen} — changer` : 'Choisir votre nom'}
               title={chosen ? `${chosen} — changer` : 'Choisir votre nom'}
             >
-              <span className="ds-initials">{chosen ? (chosen === ANONYMOUS ? '?' : initialsOf(chosen)) : '?'}</span>
+              <Initials name={chosen} />
               <IconCaretDown size={10} />
             </button>
           ) : (
-            <span className="ds-initials">{initialsOf(who)}</span>
+            <Initials name={who} />
           )}
           <div className="comments__fields">
             {picking && (
@@ -236,6 +231,6 @@ export function Comments({ comments, author, profiles, profile = null, onAuthorC
           <IconSend size={30} />
         </button>
       </div>
-    </aside>
+    </div>
   )
 }

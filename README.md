@@ -17,7 +17,7 @@ npm run dev
 
 Puis ouvrir http://localhost:5173 dans **Google Chrome** (la bulle flottante et l'encodage vidéo en dépendent). Dans ce mode, tout reste dans le navigateur.
 
-Version en ligne en local (serveur Cloudflare simulé) : `npm run dev:cloud`, puis http://localhost:8787 (mot de passe : celui de `.dev.vars`).
+Version en ligne en local (serveur Cloudflare simulé) : `npm run dev:cloud`, puis http://localhost:8787 (mot de passe : celui de `.dev.vars`). Elle utilise `wrangler.local.jsonc` : Workers AI n'existe pas hors ligne, la transcription y est remplacée par des phrases de test.
 
 ## Écrans
 
@@ -43,6 +43,10 @@ Version en ligne en local (serveur Cloudflare simulé) : `npm run dev:cloud`, pu
 - **Page personnelle** : flèche de retour vers le dashboard ; « Supprimer » et « Publier » ; une fois publiée, « Partager » et l'icône lien (copie en un clic, confirmée par une petite pastille).
 - **Partager** : on prévoit les personnes qui vont regarder (nom, e-mail facultatif) ; « Anonyme » est toujours proposé en plus. Accès **public** (toute personne ayant le lien) ou **privé** (seulement les personnes invitées, avec leur lien personnel). **Code d'accès** facultatif : sans lien personnel, il faut le saisir. Invitation par e-mail : ouvre Mail avec le message et le lien personnel déjà écrits.
 - **Page client** : regarder ne demande rien. Au moment de commenter, une petite fenêtre accrochée au champ propose de choisir son nom parmi les personnes prévues (ou « Anonyme ») ; le choix est retenu. Avec un lien personnel, la personne est reconnue directement.
+- **Lecteur** : vitesse de x1 à x3, volume, sous-titres (issus de la transcription, traduisibles), durée « 0:00 / 3:00 », plein écran ; barre de progression qu'on peut faire glisser, repères orange des commentaires. Raccourcis : espace (lecture), ← → (5 s), ↑ ↓ (volume), M (son), F (plein écran), C (sous-titres).
+- **Transcription** (version en ligne) : pendant l'enregistrement, le son part par tranches de 20 s et est transcrit par Cloudflare Workers AI (Whisper). Onglet « Transcription » à côté des commentaires : tout le texte, la phrase en cours mise en avant, clic sur une phrase pour aller à ce moment, bouton « Copier », choix de la langue (traduction automatique).
+- **Pastilles de profil** : chaque nom garde une couleur de la DA (vert, orange, gris et leurs teintes claires).
+- **Enregistrement sans à-coup** : tout se prépare pendant le décompte 3-2-1 (vidéo créée, encodeur prêt et « échauffé ») ; l'encodeur a une file d'attente, aucune image n'est jetée parce qu'il est occupé.
 - **Notifications** : la cloche du dashboard signale chaque vue et chaque commentaire d'un client (vérification toutes les 30 secondes, notifications du bureau si tu les autorises).
 - **Commentaires et vues** (version en ligne) : enregistrés sur le serveur, visibles par toi et par le client, depuis n'importe quel ordinateur.
 

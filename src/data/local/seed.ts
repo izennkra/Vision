@@ -100,3 +100,24 @@ export function seed() {
 
   return { clients, videos, comments, views }
 }
+
+/** Transcription de démonstration (version locale) pour la première vidéo. */
+export const demoTranscript: Record<string, { language: string; cues: { start: number; end: number; text: string }[] }> = {
+  'video-1': {
+    language: 'fr',
+    cues: [
+      [0, 6, 'Bonjour, je vous montre l’avancée sur les patterns de l’identité.'],
+      [6, 13, 'On part du monogramme : les courbes reprennent celles du logo.'],
+      [13, 21, 'Ici, la répétition crée une trame qui fonctionne en grand comme en petit.'],
+      [21, 29, 'J’ai testé trois densités ; la deuxième garde le mieux la lisibilité.'],
+      [29, 38, 'Sur l’affiche, le pattern passe derrière la typographie sans la gêner.'],
+      [38, 47, 'En version web, il s’anime légèrement au défilement.'],
+      [47, 56, 'Pour les couleurs, on reste sur le vert et l’orange de la marque.'],
+      [56, 66, 'Dites-moi ce que vous en pensez, notamment sur la version la plus dense.'],
+      [66, 72, 'Donc à vous.'],
+      [72, 76, 'Top.'],
+      [76, 80, 'Je te remercie.'],
+      [80, 84, 'Belle journée à toi.'],
+    ].map(([start, end, text]) => ({ start: start as number, end: end as number, text: text as string })),
+  },
+}

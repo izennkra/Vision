@@ -37,7 +37,7 @@
 .sp__person { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 6px 6px 10px; border-radius: 10px; background: var(--c-white); }
 .sp__person.is-anon { background: transparent; border: 1px dashed var(--c-surface-button); }
 .sp__initials { width: 28px; height: 28px; }
-.is-anon .sp__initials { background: var(--c-placeholder); }
+
 .sp__fields { flex: 1; min-width: 0; display: flex; gap: 8px; }
 .sp__input {
   min-width: 0;

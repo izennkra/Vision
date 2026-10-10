@@ -26,6 +26,13 @@ export {
   ArrowsClockwise as IconRefresh,
   LockSimple as IconLock,
   GlobeSimple as IconGlobe,
+  SpeakerHigh as IconVolume,
+  SpeakerLow as IconVolumeLow,
+  SpeakerX as IconMuted,
+  SlidersHorizontal as IconSettings,
+  ClosedCaptioning as IconCaptions,
+  CornersIn as IconFullscreenExit,
+  Translate as IconTranslate,
 } from '@phosphor-icons/react'
 
 type P = { size?: number; color?: string }
@@ -66,9 +73,9 @@ export function IconGrip() {
 }
 
 /** Pause : deux barres pleines (la pause Phosphor est en contour, différente de la capture). */
-export function IconPause({ color = 'currentColor' }: P) {
+export function IconPause({ color = 'currentColor', size = 11 }: P) {
   return (
-    <svg width="8" height="11" viewBox="0 0 8 11" fill={color}>
+    <svg width={(size * 8) / 11} height={size} viewBox="0 0 8 11" fill={color}>
       <rect x="0" y="0" width="2" height="11" />
       <rect x="6" y="0" width="2" height="11" />
     </svg>

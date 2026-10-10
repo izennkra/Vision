@@ -131,3 +131,25 @@ export interface Page<T> {
   next: string | null
   total: number
 }
+
+/** Une phrase de la transcription, avec son moment dans la vidéo (secondes). */
+export interface Cue {
+  start: number
+  end: number
+  text: string
+}
+
+/** Transcription d'une vidéo (dans sa langue d'origine ou traduite). */
+export interface Transcript {
+  /** none : pas de son enregistré · pending : en cours · ready : terminée · unavailable : non proposée (version locale). */
+  status: 'none' | 'pending' | 'ready' | 'unavailable'
+  /** Langue d'origine détectée (code ISO, ex. « fr »). */
+  language: string | null
+  /** Langue des phrases renvoyées. */
+  lang: string | null
+  cues: Cue[]
+  /** Traduction pas encore terminée : redemander un peu plus tard. */
+  partial?: boolean
+  /** Tranches qui n'ont pas pu être transcrites (le propriétaire peut relancer). */
+  failed?: number
+}

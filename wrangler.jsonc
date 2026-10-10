@@ -21,5 +21,7 @@
     { "binding": "DB", "database_name": "visions", "database_id": "b1f1c761-3e6c-4e4c-8cf4-3d4d14e19967", "migrations_dir": "worker/migrations" }
   ],
   "r2_buckets": [{ "binding": "VIDEOS", "bucket_name": "visions-videos" }],
+  // Workers AI : transcription (Whisper) et traduction des vidéos. Allocation gratuite chaque jour.
+  "ai": { "binding": "AI" },
   "vars": { "OWNER_NAME": "Izenn Kra" }
 }

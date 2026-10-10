@@ -424,6 +424,9 @@ button { cursor: pointer; }
   font-size: var(--fs-small);
 }
 
+/* Personne anonyme (ou pas encore de nom) : pastille grise « ? ». Les autres ont une couleur de la DA par nom. */
+.ds-initials.is-anonymous { background: var(--c-placeholder); color: var(--c-white); }
+
 /* Commentaire */
 .ds-comment__head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-body); color: var(--c-ink-soft); }
 .ds-comment__time { color: var(--c-green); }

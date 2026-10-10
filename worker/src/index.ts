@@ -13,6 +13,10 @@ export interface Env {
   OWNER_PASSWORD: string
   /** Clé de signature des sessions et des liens vidéo (secret, longue et aléatoire). */
   SESSION_SECRET: string
+  /** Workers AI (transcription et traduction). */
+  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> }
+  /** Tests locaux : « 1 » remplace Workers AI par une transcription factice. */
+  AI_MOCK?: string
   /** Prénom et nom affichés comme auteur des commentaires du propriétaire. */
   OWNER_NAME?: string
   /** Origine autorisée si l'application est servie ailleurs (ex. Vercel). */
@@ -20,6 +24,7 @@ export interface Env {
 }
 
 import { SCHEMA } from './schema'
+import { deleteTranscript, getTranscript, receiveAudio, retryFailed } from './transcribe'
 
 type Row = Record<string, unknown>
 
@@ -28,6 +33,7 @@ const UPGRADES = [
   "ALTER TABLE videos ADD COLUMN access TEXT NOT NULL DEFAULT 'public'",
   'ALTER TABLE videos ADD COLUMN access_code TEXT',
   "ALTER TABLE videos ADD COLUMN people TEXT NOT NULL DEFAULT '[]'",
+  'ALTER TABLE videos ADD COLUMN audio_chunks INTEGER',
 ]
 
 /** Crée les tables au premier démarrage (une fois par instance du serveur). */
@@ -241,6 +247,7 @@ async function deleteVideo(env: Env, id: string) {
     env.DB.prepare('DELETE FROM views WHERE video_id = ?').bind(id),
     env.DB.prepare('DELETE FROM notifications WHERE video_id = ?').bind(id),
   ])
+  await deleteTranscript(env, id)
 }
 
 // --- Accès aux pages client ------------------------------------------------------------------
@@ -325,7 +332,7 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
     if (c === 'unlock' && method === 'POST') {
       const { code } = await body<{ code: string }>(req)
       const expected = String(video.access_code ?? '')
-      if (!expected || !same(String(code ?? '').trim().toUpperCase(), expected.toUpperCase())) {
+      if (!expected || !same(String(code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, ''), expected.toUpperCase())) {
         await new Promise((r) => setTimeout(r, 600))
         throw new HttpError(403, 'Code incorrect')
       }
@@ -356,6 +363,7 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
       return json(results.map(toComment))
     }
     if (c === 'comments' && method === 'POST') return json(await addComment(env, video, await body<Row>(req), false, ownerName, me), 201)
+    if (c === 'transcript' && method === 'GET') return json(await getTranscript(env, video, new URL(req.url).searchParams.get('lang')))
     if (c === 'views' && !d && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT * FROM views WHERE video_id = ? ORDER BY started_at DESC').bind(video.id).all<Row>()
       return json(results.map(toView))
@@ -479,7 +487,8 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
           args.push(p.access)
         }
         if ('accessCode' in p) {
-          const code = String(p.accessCode ?? '').trim().toUpperCase().slice(0, 32)
+          const code = String(p.accessCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+          if (code && code.length !== 6) throw new HttpError(400, 'Le code doit faire 6 caractères')
           sets.push('access_code = ?')
           args.push(code || null)
         }
@@ -515,6 +524,21 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         await env.DB.prepare('INSERT OR REPLACE INTO parts (video_id, idx, etag, size) VALUES (?, ?, ?, ?)').bind(b, index, part.etag, data.byteLength).run()
         return json({ ok: true })
       }
+      // Son pour la transcription : une tranche d'environ 20 s (WAV en base64), transcrite aussitôt.
+      if (c === 'audio' && d !== undefined && method === 'PUT') {
+        const idx = Number(d)
+        if (!Number.isInteger(idx) || idx < 0 || idx > 100_000) throw new HttpError(400, 'Tranche invalide')
+        const audio = await req.text()
+        if (!audio || audio.length > 4_000_000) throw new HttpError(413, 'Tranche trop grande')
+        const start = Number(new URL(req.url).searchParams.get('start')) || 0
+        await receiveAudio(env, b, idx, start, audio)
+        return json({ ok: true })
+      }
+      if (c === 'transcript' && !d && method === 'GET') return json(await getTranscript(env, video, new URL(req.url).searchParams.get('lang')))
+      if (c === 'transcript' && d === 'retry' && method === 'POST') {
+        await retryFailed(env, b)
+        return json(await getTranscript(env, await getVideoRow(env, b), null))
+      }
       if (c === 'thumbnail' && method === 'PUT') {
         await env.VIDEOS.put(`thumbs/${b}.jpg`, await req.arrayBuffer(), { httpMetadata: { contentType: 'image/jpeg' } })
         await env.DB.prepare('UPDATE videos SET thumbnail_key = ? WHERE id = ?').bind(`thumbs/${b}.jpg`, b).run()
@@ -522,7 +546,7 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
       }
       // Fin d'enregistrement : assemble les morceaux en un seul fichier dans R2.
       if (c === 'complete' && method === 'POST') {
-        const { duration, width, height } = await body<{ duration: number; width?: number; height?: number }>(req)
+        const { duration, width, height, audioChunks } = await body<{ duration: number; width?: number; height?: number; audioChunks?: number }>(req)
         const { results } = await env.DB.prepare('SELECT idx, etag, size FROM parts WHERE video_id = ? ORDER BY idx').bind(b).all<Row>()
         if (!results.length) throw new HttpError(400, 'Aucun morceau reçu')
         if (video.upload_id) {
@@ -532,8 +556,8 @@ async function api(req: Request, env: Env, path: string[]): Promise<Response> {
         }
         const size = results.reduce((n, r) => n + (r.size as number), 0)
         await env.DB.batch([
-          env.DB.prepare("UPDATE videos SET status = 'draft', upload_id = NULL, duration = ?, width = ?, height = ?, size = ?, chunk_count = ?, updated_at = ? WHERE id = ?")
-            .bind(Number(duration) || 0, width ?? null, height ?? null, size, results.length, now(), b),
+          env.DB.prepare("UPDATE videos SET status = 'draft', upload_id = NULL, duration = ?, width = ?, height = ?, size = ?, chunk_count = ?, audio_chunks = ?, updated_at = ? WHERE id = ?")
+            .bind(Number(duration) || 0, width ?? null, height ?? null, size, results.length, Number.isInteger(audioChunks) ? audioChunks : null, now(), b),
           env.DB.prepare('DELETE FROM parts WHERE video_id = ?').bind(b),
         ])
         return json(await toVideo(env, await getVideoRow(env, b)))

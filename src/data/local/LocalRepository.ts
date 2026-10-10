@@ -4,9 +4,9 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
-import type { AppNotification, Client, Comment, ID, Page, Person, Video, VideoChunk, View } from '../types'
+import type { AppNotification, Client, Comment, ID, Page, Person, Transcript, Video, VideoChunk, View } from '../types'
 import { owner } from '../../config'
-import { seed } from './seed'
+import { demoTranscript, seed } from './seed'
 
 interface VisionsDB extends DBSchema {
   clients: { key: ID; value: Client }
@@ -224,7 +224,11 @@ export class LocalRepository implements Repository {
     if (!video) throw new Error('Vidéo introuvable')
     const { people: peopleInput, accessCode, ...rest } = patch
     const updated: Video = { ...video, ...rest, updatedAt: now() }
-    if (accessCode !== undefined) updated.accessCode = accessCode?.trim().toUpperCase() || null
+    if (accessCode !== undefined) {
+      const code = (accessCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+      if (code && code.length !== 6) throw new Error('Le code doit faire 6 caractères')
+      updated.accessCode = code || null
+    }
     if (peopleInput) {
       const before = video.people ?? []
       updated.people = peopleInput
@@ -295,7 +299,7 @@ export class LocalRepository implements Repository {
 
   async finishRecording(
     videoId: ID,
-    { duration, thumbnail, width, height }: { duration: number; thumbnail: Blob | null; width?: number; height?: number },
+    { duration, thumbnail, width, height }: { duration: number; thumbnail: Blob | null; width?: number; height?: number; audioChunks?: number },
   ) {
     const db = await this.dbp
     const video = await db.get('videos', videoId)
@@ -325,6 +329,19 @@ export class LocalRepository implements Repository {
   }
 
   // --- Lecture --------------------------------------------------------------
+  // Transcription : seulement dans la version en ligne (Workers AI). Ici, une démonstration pour la première vidéo.
+  appendAudio() {}
+
+  async getTranscript(videoId: ID): Promise<Transcript> {
+    const demo = demoTranscript[videoId]
+    if (!demo) return { status: 'unavailable', language: null, lang: null, cues: [] }
+    return { status: 'ready', language: demo.language, lang: demo.language, cues: demo.cues }
+  }
+
+  retryTranscript(videoId: ID) {
+    return this.getTranscript(videoId)
+  }
+
   async getThumbnail(key: string) {
     return (await (await this.dbp).get('thumbnails', key))?.data ?? null
   }

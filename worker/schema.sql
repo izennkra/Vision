@@ -77,3 +77,24 @@ CREATE TABLE IF NOT EXISTS notifications (
   read INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS notifications_created ON notifications (created_at DESC);
+
+-- Transcription : le son est envoyé par tranches d'environ 20 secondes pendant l'enregistrement,
+-- chaque tranche est transcrite (Workers AI, Whisper) et ses phrases sont gardées ici.
+CREATE TABLE IF NOT EXISTS transcript_chunks (
+  video_id TEXT NOT NULL,
+  idx INTEGER NOT NULL,
+  start REAL NOT NULL,           -- début de la tranche dans la vidéo (secondes)
+  status TEXT NOT NULL,          -- pending | done | error
+  language TEXT,                 -- langue détectée (fr, en…)
+  cues TEXT NOT NULL DEFAULT '[]', -- [{ start, end, text }] en secondes dans la vidéo
+  PRIMARY KEY (video_id, idx)
+);
+
+-- Traductions des phrases, faites à la demande et gardées.
+CREATE TABLE IF NOT EXISTS transcript_translations (
+  video_id TEXT NOT NULL,
+  idx INTEGER NOT NULL,
+  lang TEXT NOT NULL,
+  cues TEXT NOT NULL,
+  PRIMARY KEY (video_id, idx, lang)
+);

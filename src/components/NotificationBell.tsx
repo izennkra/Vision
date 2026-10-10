@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { repo, type AppNotification } from '../data'
 import { timeAgo } from '../lib/format'
-import { initialsOf } from './Comments'
+import { Initials } from './Initials'
 import { IconBell } from './icons'
 import { useToast } from './Toast'
 
@@ -104,7 +104,7 @@ export function NotificationBell() {
             {items.map((n) => (
               <li key={n.id}>
                 <button className={`bell__item${n.read ? '' : ' is-unread'}`} onClick={() => openItem(n)}>
-                  <span className="ds-initials">{n.actor === 'Anonyme' ? '?' : initialsOf(n.actor)}</span>
+                  <Initials name={n.actor} />
                   <span className="bell__text">
                     <span className="bell__line">
                       <strong>{n.actor}</strong> a {n.type === 'view' ? 'regardé' : 'commenté'} « {n.videoTitle} »

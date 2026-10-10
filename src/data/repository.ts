@@ -4,7 +4,7 @@
 // Étape 2 : implémentation Cloudflare (R2 pour les vidéos, base de données pour le reste)
 // qui respecte la même interface — les écrans ne changent pas.
 
-import type { Access, AppNotification, Client, Comment, ID, Page, Person, Video, View } from './types'
+import type { Access, AppNotification, Client, Comment, ID, Page, Person, Transcript, Video, View } from './types'
 
 export interface VideoQuery {
   /** Dossier : inclut les vidéos de ses sous-dossiers. */
@@ -57,7 +57,15 @@ export interface Repository {
   getChunk(videoId: ID, index: number): Promise<Blob | null>
   /** Adresse de téléchargement du fichier complet (copie sur le Mac). */
   getDownloadUrl(videoId: ID): Promise<string | null>
-  finishRecording(videoId: ID, info: { duration: number; thumbnail: Blob | null; width?: number; height?: number }): Promise<Video>
+  finishRecording(
+    videoId: ID,
+    info: { duration: number; thumbnail: Blob | null; width?: number; height?: number; audioChunks?: number },
+  ): Promise<Video>
+
+  // Transcription : tranches de son envoyées pendant l'enregistrement, puis lecture (éventuellement traduite).
+  appendAudio(videoId: ID, index: number, start: number, wav: Blob): void
+  getTranscript(videoId: ID, lang?: string | null): Promise<Transcript>
+  retryTranscript(videoId: ID): Promise<Transcript>
 
   // Lecture
   getThumbnail(key: string): Promise<Blob | null>

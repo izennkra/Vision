@@ -8,7 +8,8 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { api, ApiError, mediaHref } from '../../lib/api'
 import type { Repository, SharedResult, VideoPatch, VideoQuery } from '../repository'
-import type { AppNotification, Client, Comment, ID, Page, Video, View } from '../types'
+import { blobToBase64 } from '../../recorder/speech'
+import type { AppNotification, Client, Comment, ID, Page, Transcript, Video, View } from '../types'
 
 interface CacheDB extends DBSchema {
   parts: { key: [ID, number]; value: { videoId: ID; index: number; data: Blob; savedAt: number }; indexes: { byVideo: ID } }
@@ -39,6 +40,7 @@ type VideoWithUrl = Video & { playbackUrl?: string }
 export class RemoteRepository implements Repository {
   private cache: Promise<IDBPDatabase<CacheDB>>
   private uploads = new Map<ID, Promise<void>>()
+  private audioUploads = new Map<ID, Promise<void>>()
   private failures = new Map<ID, unknown>()
   private playback = new Map<ID, string>()
   private tokens = new Map<ID, string>()
@@ -186,7 +188,7 @@ export class RemoteRepository implements Repository {
 
   async finishRecording(
     videoId: ID,
-    info: { duration: number; thumbnail: Blob | null; width?: number; height?: number },
+    info: { duration: number; thumbnail: Blob | null; width?: number; height?: number; audioChunks?: number },
   ) {
     await this.uploads.get(videoId)
     const failure = this.failures.get(videoId)
@@ -195,6 +197,36 @@ export class RemoteRepository implements Repository {
     const { thumbnail: _, ...rest } = info
     void _
     return api<Video>(`videos/${videoId}/complete`, { method: 'POST', json: rest })
+  }
+
+  // --- Transcription -------------------------------------------------------------------------
+  appendAudio(videoId: ID, index: number, start: number, wav: Blob) {
+    // L'une après l'autre, en arrière-plan, avec nouvelles tentatives ; n'attend jamais l'enregistrement.
+    const previous = this.audioUploads.get(videoId) ?? Promise.resolve()
+    const next = previous.then(async () => {
+      const audio = await blobToBase64(wav)
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await api(`videos/${videoId}/audio/${index}?start=${start.toFixed(3)}`, { method: 'PUT', body: audio, headers: { 'content-type': 'text/plain' } })
+          return
+        } catch (e) {
+          if (e instanceof ApiError && [400, 401, 403, 404, 413].includes(e.status)) return
+          if (attempt >= 6) return
+          await sleep(Math.min(30_000, 1000 * 2 ** attempt))
+        }
+      }
+    })
+    this.audioUploads.set(videoId, next)
+  }
+
+  getTranscript(videoId: ID, lang?: string | null) {
+    const token = this.clientToken(videoId)
+    const q = lang ? `?lang=${encodeURIComponent(lang)}` : ''
+    return token ? this.share<Transcript>(token, `/transcript${q}`) : api<Transcript>(`videos/${videoId}/transcript${q}`)
+  }
+
+  retryTranscript(videoId: ID) {
+    return api<Transcript>(`videos/${videoId}/transcript/retry`, { method: 'POST' })
   }
 
   // --- Lecture -------------------------------------------------------------------------------

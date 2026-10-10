@@ -134,8 +134,16 @@ export default function Recorder() {
       else setError('Clique de nouveau sur GO pour choisir ce que tu enregistres.')
       return
     }
+    // Pendant le décompte, tout se prépare (vidéo, fichier, encodeur) : au « GO », l'image démarre net.
+    const prepared = s.prepare().then(
+      () => null,
+      (e: unknown) => (e instanceof Error ? e : new Error('Enregistrement impossible')),
+    )
+    session.current = s // quitter la page pendant le décompte annule aussi la préparation
     if (!(await runCountdown())) {
-      s.dispose()
+      session.current = null
+      await prepared
+      await s.cancel()
       pip.close()
       setState('idle')
       return
@@ -143,18 +151,18 @@ export default function Recorder() {
     // Écran entier : la bulle est dessinée dans la vidéo ; la fenêtre flottante serait filmée en double.
     if (whole) pip.close()
     s.onEnded = () => stopRef.current()
-    session.current = s
-    try {
-      await s.start()
-      setElapsed(0)
-      setState('recording')
-    } catch (e) {
-      s.dispose()
+    const failed = await prepared
+    if (failed) {
+      await s.cancel()
       pip.close()
       session.current = null
-      setError(e instanceof Error ? e.message : 'Enregistrement impossible')
+      setError(failed.message)
       setState('idle')
+      return
     }
+    s.begin()
+    setElapsed(0)
+    setState('recording')
   }
 
   const stopRef = useRef(stop)
