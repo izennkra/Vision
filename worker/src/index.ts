@@ -19,7 +19,19 @@ export interface Env {
   ALLOWED_ORIGIN?: string
 }
 
+import { SCHEMA } from './schema'
+
 type Row = Record<string, unknown>
+
+/** Crée les tables au premier démarrage (une fois par instance du serveur). */
+let schemaReady: Promise<unknown> | null = null
+function ensureSchema(env: Env) {
+  schemaReady ??= env.DB.batch(SCHEMA.map((sql) => env.DB.prepare(sql))).catch((e) => {
+    schemaReady = null
+    throw e
+  })
+  return schemaReady
+}
 
 const SESSION_DAYS = 30
 const MEDIA_HOURS = 12
@@ -493,6 +505,7 @@ export default {
     const path = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
     if (req.method === 'OPTIONS') return cors(req, env, new Response(null, { status: 204 }))
     try {
+      if (path[0] === 'api' || path[0] === 'media') await ensureSchema(env)
       if (path[0] === 'api') return cors(req, env, await api(req, env, path.slice(1)))
       if (path[0] === 'media' && (path[1] === 'video' || path[1] === 'thumb') && path[2])
         return cors(req, env, await serveMedia(req, env, path[1], path[2]))

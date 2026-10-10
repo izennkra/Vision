@@ -18,10 +18,9 @@ R2 demande d'enregistrer un moyen de paiement, même pour rester dans la partie 
 
 1. **Compte** : crée un compte sur [dash.cloudflare.com](https://dash.cloudflare.com) (gratuit).
 2. **Stockage des vidéos** : menu **R2 Object Storage** → **Create bucket** → nom : `visions-videos` → Create.
-3. **Base de données** : menu **Storage & Databases → D1** → **Create database** → nom : `visions` → Create.
-   - Ouvre la base, onglet **Console**, colle tout le contenu du fichier `worker/migrations/0001_initial.sql` et clique **Execute**.
-   - Copie l'**ID de la base** (en haut de la page) et envoie-le-moi : je le mets dans `wrangler.jsonc` (ligne `database_id`, à la place de `REMPLACER-PAR-L-ID-DE-LA-BASE-D1`). Tu peux aussi le remplacer toi-même dans ce fichier sur GitHub.
-4. **Application** : menu **Workers & Pages** → **Create** → **Import a repository** → choisis `izennkra/Vision`.
+3. **Base de données** : menu **Storage & databases → D1 SQLite Database** → **Create Database** → nom : `visions` → région *Western Europe* → Create. ✅ Fait (identifiant déjà ajouté au projet). Les tables sont créées automatiquement par le serveur au premier démarrage : rien à coller dans la console.
+4. **Application** : menu **Compute → Workers & Pages** → **Create** → **Import a repository** → choisis `izennkra/Vision`.
+   - Nom du projet : `visions` (exactement, c'est le nom attendu par la configuration).
    - Branche : celle où se trouve le travail (ou `main` une fois fusionné).
    - **Build command** : `npm run build:cloud`
    - **Deploy command** : `npx wrangler deploy`

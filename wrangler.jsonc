@@ -1,5 +1,5 @@
 // Déploiement Cloudflare de Visions : application + API + stockage.
-// Les deux identifiants « REMPLACER… » sont donnés par les commandes du guide (DEPLOIEMENT.md).
+// Base D1 « visions » et stockage R2 « visions-videos » créés sur le compte Cloudflare (voir DEPLOIEMENT.md).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "visions",
@@ -15,7 +15,7 @@
     "run_worker_first": ["/api/*", "/media/*"]
   },
   "d1_databases": [
-    { "binding": "DB", "database_name": "visions", "database_id": "REMPLACER-PAR-L-ID-DE-LA-BASE-D1", "migrations_dir": "worker/migrations" }
+    { "binding": "DB", "database_name": "visions", "database_id": "b1f1c761-3e6c-4e4c-8cf4-3d4d14e19967", "migrations_dir": "worker/migrations" }
   ],
   "r2_buckets": [{ "binding": "VIDEOS", "bucket_name": "visions-videos" }],
   "vars": { "OWNER_NAME": "Izenn Kra" }
