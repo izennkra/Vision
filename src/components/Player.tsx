@@ -34,6 +34,8 @@ interface Props {
   qualities?: Quality[]
   /** Propriétaire : préparer les versions 720p et 480p manquantes. */
   onPrepareQualities?: () => void
+  /** Lecture lancée ou arrêtée (pause, fin). */
+  onPlayState?: (playing: boolean) => void
   /** Préparation en cours (0 à 1), null sinon. */
   preparing?: number | null
 }
@@ -76,7 +78,7 @@ type Menu = null | 'speed' | 'settings'
 export const Player = forwardRef<PlayerHandle, Props>(function Player(
   {
     src: originalSrc, poster, knownDuration = 0, aspect: knownAspect, markers = [], captions = null, captionLang, onCaptionLang, onFirstPlay, onProgress,
-    qualities = [], onPrepareQualities, preparing = null,
+    qualities = [], onPrepareQualities, preparing = null, onPlayState,
   },
   ref,
 ) {
@@ -364,9 +366,13 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
         onPlay={() => {
           setPlaying(true)
+          onPlayState?.(true)
           wake() // les commandes s'effacent d'elles-mêmes peu après le début de la lecture (utile au doigt)
         }}
-        onPause={() => setPlaying(false)}
+        onPause={() => {
+          setPlaying(false)
+          onPlayState?.(false)
+        }}
         onWaiting={() => setWaiting(true)}
         onPlaying={() => setWaiting(false)}
         onCanPlay={() => setWaiting(false)}
@@ -376,7 +382,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           if (!dragging.current) setTime(t)
           if (duration) onProgress?.(t / duration, t)
         }}
-        onEnded={() => onProgress?.(1, duration)}
+        onEnded={() => {
+          onProgress?.(1, duration)
+          onPlayState?.(false)
+        }}
       />
       {!started && poster && <img className="player__poster" src={poster} alt="" />}
 

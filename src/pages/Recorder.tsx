@@ -2,13 +2,18 @@
 // et déplaçable (arrêter, chrono, pause, recommencer — grisée tant que rien n'est lancé),
 // bulle caméra en bas à gauche.
 // Pendant l'enregistrement, la bulle passe dans une fenêtre Picture-in-Picture qui reste
-// au premier plan même dans une autre application.
+// au premier plan même dans une autre application ; les notes à lire s'y affichent aussi
+// (jamais dans la vidéo quand on enregistre une fenêtre ou un onglet).
+// Test du micro avant d'enregistrer : le son est renvoyé dans les écouteurs, avec un vumètre.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { repo } from '../data'
 import { useContextMenu, type MenuItem } from '../components/ContextMenu'
-import { IconCamera, IconFilter, IconGrip, IconMic, IconPause, IconPlay, IconRestart, IconWindow } from '../components/icons'
+import { IconCamera, IconFilter, IconGrip, IconMic, IconNotes, IconPause, IconPlay, IconRestart, IconVolume, IconWindow } from '../components/icons'
+import { NotesEditor } from '../components/NotesEditor'
+import { NotesSheet } from '../components/NotesSheet'
+import { hasNotes, SCALE_MAX, SCALE_MIN, useNotes, type NotesDoc } from '../lib/notes'
 import { cancelAllQualities } from '../lib/renditions'
 import { useToast } from '../components/Toast'
 import { clock } from '../lib/format'
@@ -16,6 +21,7 @@ import * as sounds from '../recorder/sounds'
 import { cameraFilters, filterCss } from '../recorder/filters'
 import { recordingSupported, RecordingSession, type Surface } from '../recorder/session'
 import { OFF, useDevices } from '../recorder/useDevices'
+import { useMicTest } from '../recorder/useMicTest'
 import { pipSupported, usePip } from '../recorder/usePip'
 import './recorder.css'
 
@@ -36,6 +42,11 @@ export default function Recorder() {
   const [params] = useSearchParams()
   const openMenu = useContextMenu()
   const devices = useDevices()
+  const micTest = useMicTest(devices.mic)
+  const [notes, updateNotes] = useNotes()
+  const [notesOpen, setNotesOpen] = useState(false)
+  // Notes affichées dans la fenêtre flottante pendant l'enregistrement.
+  const notesLive = notes.shown && hasNotes(notes)
   const pip = usePip()
   const [surface, setSurface] = useState<Surface>('window')
   const [filter, setFilter] = useState(() => localStorage.getItem('visions:filter') ?? 'none')
@@ -114,9 +125,11 @@ export default function Recorder() {
     // Safari et Firefox n'ont pas encore tout ce qu'il faut pour enregistrer sans à-coup.
     if (!recordingSupported()) return setError('L’enregistrement fonctionne dans Google Chrome (ou Edge, Arc, Brave).')
     setError(null)
+    micTest.stop()
+    setNotesOpen(false)
     sounds.unlock()
-    // La fenêtre flottante doit s'ouvrir pendant le clic (exigence du navigateur).
-    if (pipSupported) await pip.open(220, 220).catch(() => null)
+    // La fenêtre flottante doit s'ouvrir pendant le clic (exigence du navigateur). Plus grande avec les notes.
+    if (pipSupported) await pip.open(notesLive ? 380 : 220, notesLive ? 600 : 220).catch(() => null)
     const { total } = await repo.listVideos({ search: 'Sans titre', limit: 1 })
     const s = new RecordingSession({
       surface,
@@ -154,7 +167,8 @@ export default function Recorder() {
       return
     }
     // Écran entier : la bulle est dessinée dans la vidéo ; la fenêtre flottante serait filmée en double.
-    if (whole) pip.close()
+    // Avec des notes, elle reste ouverte (sans la caméra) : c'est choisi en connaissance de cause.
+    if (whole && !notesLive) pip.close()
     s.onEnded = () => stopRef.current()
     const failed = await prepared
     if (failed) {
@@ -248,6 +262,22 @@ export default function Recorder() {
         >
           <IconMic size={17} weight="regular" />Micro
         </button>
+        {micOn && (
+          <div className={`rec__mictest${micTest.testing ? ' is-on' : ''}`}>
+            <button className="ds-hover rec__mictest-btn" onClick={micTest.toggle} aria-pressed={micTest.testing}>
+              <IconVolume size={13} weight="fill" />
+              {micTest.testing ? 'Arrêter le test' : 'Tester le micro'}
+            </button>
+            {micTest.testing && (
+              <>
+                <span className="rec__meter" aria-hidden>
+                  {Array.from({ length: 10 }, (_, i) => <i key={i} className={micTest.level * 10 >= i + 0.5 ? 'is-lit' : ''} />)}
+                </span>
+                <p className="rec__mictest-hint">Parle : tu t’entends comme tes clients t’entendront.</p>
+              </>
+            )}
+          </div>
+        )}
         <button
           className="ds-option"
           onClick={(e) =>
@@ -266,11 +296,18 @@ export default function Recorder() {
         >
           <IconFilter size={17} />Filtre caméra
         </button>
+        <button className={`ds-option${notesLive ? '' : ' is-off'}`} onClick={() => setNotesOpen((o) => !o)} aria-expanded={notesOpen}>
+          <IconNotes size={17} weight="regular" />Notes
+        </button>
         <button className="ds-round-primary rec__go" onClick={go}>GO</button>
         {(error || devices.denied) && (
           <p className="rec__note">{error ?? 'Autorise la caméra et le micro dans le navigateur pour les utiliser.'}</p>
         )}
       </div>
+
+      {notesOpen && state === 'idle' && (
+        <NotesEditor doc={notes} onChange={updateNotes} onClose={() => setNotesOpen(false)} fullScreen={surface === 'monitor'} />
+      )}
 
       {devices.camera && !pip.win && !(fullScreen && active) && (
         <div className="rec__bubble">
@@ -289,13 +326,20 @@ export default function Recorder() {
       {pip.win &&
         createPortal(
           <PipBubble
-            stream={devices.camera}
+            stream={fullScreen && active ? null : devices.camera}
             filter={filter}
             state={state}
             count={count}
             elapsed={elapsed}
             onPause={togglePause}
             onStop={stop}
+            notes={notesLive ? notes : null}
+            captured={fullScreen && notesLive}
+            onScale={(d) => updateNotes({ scale: Math.min(SCALE_MAX, Math.max(SCALE_MIN, notes.scale + d)) })}
+            onHideNotes={() => {
+              updateNotes({ shown: false })
+              pip.resize(220, 220)
+            }}
           />,
           pip.win.document.body,
         )}
@@ -414,11 +458,45 @@ interface PipProps {
   elapsed: number
   onPause: () => void
   onStop: () => void
+  /** Notes à lire ; null : la fenêtre n'est que la bulle. */
+  notes: NotesDoc | null
+  /** Écran entier : cette fenêtre est filmée. */
+  captured: boolean
+  onScale: (delta: number) => void
+  onHideNotes: () => void
 }
 
-/** Contenu de la fenêtre flottante : la bulle et, au survol, pause / arrêt. Styles en ligne (autre document). */
-function PipBubble({ stream, filter, state, count, elapsed, onPause, onStop }: PipProps) {
+/**
+ * Contenu de la fenêtre flottante. Sans notes : la bulle et, au survol, pause / arrêt (styles en ligne).
+ * Avec notes : les notes en haut, et en bas la caméra, la taille du texte, pause, chrono et arrêt.
+ */
+function PipBubble({ stream, filter, state, count, elapsed, onPause, onStop, notes, captured, onScale, onHideNotes }: PipProps) {
   const [hover, setHover] = useState(false)
+  if (notes) {
+    return (
+      <div className="pip">
+        <div className="pip__notes"><NotesSheet doc={notes} /></div>
+        {captured && <div className="pip__warn">Écran entier : cette fenêtre apparaît dans la vidéo.</div>}
+        <div className="pip__bar">
+          {stream && <div className="pip__cam"><CameraVideo stream={stream} filter={filter} /></div>}
+          <button className="pip__btn" onClick={() => onScale(-1)} title="Texte plus petit" aria-label="Texte plus petit" style={{ fontSize: 11 }}>A−</button>
+          <button className="pip__btn" onClick={() => onScale(1)} title="Texte plus grand" aria-label="Texte plus grand" style={{ fontSize: 14 }}>A+</button>
+          <button className="pip__btn" onClick={onHideNotes} title="Masquer les notes" aria-label="Masquer les notes" style={{ fontSize: 11 }}>Masquer</button>
+          <span className="pip__spacer" />
+          {state !== 'countdown' && (
+            <>
+              <button className="pip__btn" onClick={onPause} title={state === 'paused' ? 'Reprendre' : 'Pause'} aria-label={state === 'paused' ? 'Reprendre' : 'Pause'}>
+                {state === 'paused' ? <IconPlay size={12} weight="fill" /> : <IconPause size={12} />}
+              </button>
+              <span className="ds-timer pip__timer">{clock(elapsed)}</span>
+              <button className="pip__btn pip__btn--stop" onClick={onStop} title="Arrêter et enregistrer" aria-label="Arrêter et enregistrer"><span /></button>
+            </>
+          )}
+          {state === 'countdown' && <span className="ds-timer pip__timer">{count}</span>}
+        </div>
+      </div>
+    )
+  }
   const btn: React.CSSProperties = {
     width: 34,
     height: 34,

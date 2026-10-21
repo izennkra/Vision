@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { owner } from '../config'
 import { repo, type Client, type Comment, type ID, type Quality, type Transcript, type Video } from '../data'
 import { cloud } from '../lib/api'
-import { prepareQualities, TARGETS, useQualityJob } from '../lib/renditions'
+import { cancelAllQualities, prepareQualities, TARGETS, useQualityJob } from '../lib/renditions'
 import type { SharedResult } from '../data/repository'
 import { ANONYMOUS, Comments, initialsOf } from '../components/Comments'
 import { PeopleContext } from '../components/Initials'
@@ -50,6 +50,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const [panel, setPanel] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [playing, setPlaying] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
   const [now, setNow] = useState(0)
   const [time, setTime] = useState(0)
   const [tab, setTab] = useState<'comments' | 'transcript'>('comments')
@@ -149,15 +150,19 @@ export default function VideoPage({ mode }: { mode: Mode }) {
   const startQualities = useCallback(() => {
     if (videoId && src) void prepareQualities(videoId, src)
   }, [videoId, src])
-  // Juste après l'enregistrement, le fichier est encore dans ce navigateur : on prépare tout seul.
+  // Juste après l'enregistrement, le fichier est encore dans ce navigateur : on prépare tout seul,
+  // mais jamais pendant la lecture (priorité à une vidéo fluide) : la préparation reprend à la pause.
   useEffect(() => {
-    if (!missingQualities || job || !videoId) return
+    if (!missingQualities || job || !videoId || isPlaying) return
     let cancelled = false
     repo.getLocalFile(videoId).then((f) => !cancelled && f && startQualities())
     return () => {
       cancelled = true
     }
-  }, [missingQualities, job, videoId, startQualities])
+  }, [missingQualities, job, videoId, startQualities, isPlaying])
+  useEffect(() => {
+    if (isPlaying) void cancelAllQualities()
+  }, [isPlaying])
 
   // Résumé automatique : écrit par le serveur à la fin de la transcription ; on recharge la description quand il arrive.
   const summaryWaiting =
@@ -339,6 +344,7 @@ export default function VideoPage({ mode }: { mode: Mode }) {
               captionLang={transcript?.lang ?? null}
               onCaptionLang={setLang}
               onFirstPlay={onFirstPlay}
+              onPlayState={setIsPlaying}
               qualities={qualities}
               onPrepareQualities={missingQualities && job?.status !== 'running' ? startQualities : undefined}
               preparing={job?.status === 'running' ? job.progress : null}

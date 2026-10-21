@@ -12,12 +12,24 @@ export function usePip() {
 
   const open = useCallback(async (width: number, height: number) => {
     if (!api) return null
-    if (api.window) return api.window
+    // Une seule fenêtre flottante à la fois : une fenêtre déjà ouverte (clic précédent) est refaite à la bonne taille.
+    api.window?.close()
     const w = await api.requestWindow({ width, height })
-    w.document.body.style.cssText = 'margin:0;background:#f1f1f1;overflow:hidden;font-family:system-ui,sans-serif'
+    // Mêmes styles (police, couleurs, notes) que la page : les feuilles de style sont recopiées.
+    for (const el of document.querySelectorAll('link[rel="stylesheet"], style')) w.document.head.appendChild(el.cloneNode(true))
+    w.document.body.style.cssText = 'margin:0;background:#f1f1f1;overflow:hidden'
     w.addEventListener('pagehide', () => setWin(null))
     setWin(w)
     return w
+  }, [])
+
+  /** Redimensionne la fenêtre flottante (seulement depuis un clic dans cette fenêtre). */
+  const resize = useCallback((width: number, height: number) => {
+    try {
+      api?.window?.resizeTo(width, height)
+    } catch {
+      /* sans geste de l'utilisateur dans la fenêtre, le navigateur refuse */
+    }
   }, [])
 
   const close = useCallback(() => {
@@ -26,5 +38,5 @@ export function usePip() {
   }, [])
 
   useEffect(() => () => api?.window?.close(), [])
-  return { win, open, close }
+  return { win, open, close, resize }
 }

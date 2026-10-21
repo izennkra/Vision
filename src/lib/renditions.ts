@@ -75,8 +75,10 @@ export async function prepareQualities(videoId: ID, originalUrl: string) {
     set(videoId, { status: 'done', progress: 1, current: null, qualities })
   } catch (e) {
     console.warn('Versions allégées', e)
-    set(videoId, { status: canceled ? 'done' : 'error', progress: 0, current: null })
+    // Annulée : plus de travail en cours (elle pourra repartir) ; sinon, en erreur.
     if (canceled) jobs.delete(videoId)
+    else jobs.set(videoId, { status: 'error', progress: 0, current: null })
+    emit()
   } finally {
     cancels.delete(videoId)
   }

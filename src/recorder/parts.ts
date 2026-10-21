@@ -13,7 +13,9 @@ export type PartSink = (index: number, data: Blob) => Promise<void>
 export type PartReader = (index: number) => Promise<Blob | null>
 
 export class PartWriter {
-  private parts = new Map<number, Uint8Array>()
+  private parts = new Map<number, Uint8Array<ArrayBuffer>>()
+  /** Tampons de 8 Mo réutilisés : ni allocation ni copie en cours d'enregistrement. */
+  private pool: Uint8Array<ArrayBuffer>[] = []
   private flushed = new Set<number>()
   private queue: Promise<void> = Promise.resolve()
   private failure: unknown = null
@@ -59,7 +61,7 @@ export class PartWriter {
   private buffer(index: number) {
     let b = this.parts.get(index)
     if (!b) {
-      b = new Uint8Array(PART_SIZE)
+      b = this.pool.pop() ?? new Uint8Array(PART_SIZE)
       this.parts.set(index, b)
     }
     return b
@@ -69,7 +71,8 @@ export class PartWriter {
     const b = this.parts.get(index)!
     this.parts.delete(index)
     this.flushed.add(index)
-    const blob = new Blob([b.slice(0, length)])
+    const blob = new Blob([b.subarray(0, length)]) // le Blob prend sa propre copie : le tampon resservira
+    if (this.pool.length < 2) this.pool.push(b)
     this.enqueue(() => this.sink(index, blob))
   }
 

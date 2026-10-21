@@ -33,6 +33,7 @@ export {
   ClosedCaptioning as IconCaptions,
   CornersIn as IconFullscreenExit,
   Translate as IconTranslate,
+  NotePencil as IconNotes,
 } from '@phosphor-icons/react'
 
 type P = { size?: number; color?: string }

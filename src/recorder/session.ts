@@ -12,6 +12,9 @@
 // - Aucun à-coup au démarrage : tout est préparé pendant le décompte 3-2-1 (vidéo créée, fichier ouvert,
 //   encodeur configuré puis « échauffé » avec une image jetée). L'encodeur est piloté directement
 //   (WebCodecs) avec une file d'attente : une image n'est jamais jetée parce que l'encodeur est occupé.
+// - Aucune saccade en cours de route : rien ne bloque le fil principal (pas de lecture de pixels, morceaux
+//   de fichier dans des tampons réutilisés), chaque image d'écran est encodée (la caméra ne complète qu'entre
+//   deux images d'écran), et les images sont datées à leur capture, pas à leur traitement.
 
 import {
   AudioSample,
@@ -24,6 +27,7 @@ import {
   StreamTarget,
 } from 'mediabunny'
 import { repo, type ID, type Video } from '../data'
+import { cornerDepth } from './corner'
 import { filterCss } from './filters'
 import { PartWriter } from './parts'
 import { SpeechChunker } from './speech'
@@ -109,6 +113,8 @@ export class RecordingSession {
 
   private opts: SessionOptions
   private display: MediaStream | null = null
+  /** Ce qui est réellement partagé (écran, fenêtre ou onglet), d'après le navigateur. */
+  surface: Surface = 'window'
   private audioCtx: AudioContext | null = null
   private audioTrack: MediaStreamTrack | null = null
   private canvas = document.createElement('canvas')
@@ -130,6 +136,9 @@ export class RecordingSession {
   dropped = 0
   /** Diagnostic : images reçues de l'écran et de la caméra, images encodées. */
   stats = { screen: 0, cam: 0, encoded: 0 }
+  /** Diagnostic (développement) : images encodées — source, horodatage retenu et heure de traitement (secondes). */
+  times: number[] = []
+  diag: { src: string; t: number; wall: number }[] = []
   private audioSource: AudioSampleSource | null = null
   /** Son découpé pour la transcription. */
   private speech: SpeechChunker | null = null
@@ -144,8 +153,12 @@ export class RecordingSession {
   private pausedAt: number | null = null
   private pausedTotal = 0
   private lastEmit = 0
+  private lastScreenAt = 0
+  private lastTime = -1
   private prepared = false
   private audioOrigin: { data: number; at: number } | null = null
+  /** Horloge de capture de chaque source, recalée sur la chronologie de la vidéo (comme le son). */
+  private frameOrigin: Record<'screen' | 'cam', { ts: number; at: number } | null> = { screen: null, cam: null }
   private thumbnail: Promise<Blob | null> = Promise.resolve(null)
 
   constructor(opts: SessionOptions) {
@@ -177,9 +190,10 @@ export class RecordingSession {
     } as DisplayMediaStreamOptions)
     const track = this.display.getVideoTracks()[0]
     track.addEventListener('ended', () => this.onEnded?.())
+    this.surface = (track.getSettings() as { displaySurface?: Surface }).displaySurface ?? this.opts.surface
     this.prepareAudio()
     this.startPumps()
-    return (track.getSettings() as { displaySurface?: Surface }).displaySurface ?? this.opts.surface
+    return this.surface
   }
 
   /**
@@ -238,9 +252,11 @@ export class RecordingSession {
     this.pausedAt = null
     this.pausedTotal = 0
     this.lastEmit = 0
+    this.lastTime = -1
     this.lastKeyFrame = -Infinity
     this.forceKeyFrame = true
     this.audioOrigin = null
+    this.frameOrigin = { screen: null, cam: null }
     this.dropped = 0
     const videoId = this.video!.id
     this.voices = []
@@ -248,7 +264,7 @@ export class RecordingSession {
       ? new SpeechChunker((index, start, wav, length) => repo.appendAudio(videoId, index, start, wav, this.voicesFor(start, length)))
       : null
     this.running = true
-    this.emit(true) // première image tout de suite
+    this.emit('tick') // première image tout de suite
     this.thumbnail = this.grabThumbnail()
   }
 
@@ -431,14 +447,14 @@ export class RecordingSession {
       this.screen?.close()
       this.screen = f
       this.stats.screen++
-      this.emit()
+      this.emit('screen')
     })
     if (camTrack) {
       this.pump<VideoFrame>(Proc, camTrack, (f) => {
         this.cam?.close()
         this.cam = f
         this.stats.cam++
-        this.emit()
+        this.emit('cam')
       })
       this.stopPumps.push(() => camTrack.stop())
     }
@@ -452,7 +468,7 @@ export class RecordingSession {
     // même quand Visions est en arrière-plan.
     this.stopPumps.push(
       ticker(500, () => {
-        if (performance.now() - this.lastEmit > 450) this.emit(true)
+        if (performance.now() - this.lastEmit > 450) this.emit('tick')
       }),
     )
     if (this.meters) this.stopPumps.push(ticker(100, () => this.sampleVoices()))
@@ -491,31 +507,24 @@ export class RecordingSession {
 
   // --- Composition et encodage ----------------------------------------------------------------
 
-  /** Dessine l'écran (ajusté à la taille de la vidéo) et la bulle caméra en bas à gauche. */
   /**
-   * Fenêtre enregistrée sur Mac : ses coins arrondis arrivent transparents (ils deviendraient noirs dans la vidéo).
-   * On mesure l'arrondi (au plus toutes les 2 s) en lisant la diagonale du coin haut gauche.
+   * Fenêtre enregistrée sur Mac : ses coins arrondis arrivent transparents (noirs dans la vidéo). On mesure
+   * l'arrondi au plus toutes les 2 s, en lisant seulement 96 × 96 pixels de l'image, hors du fil de la composition.
    */
-  private cornerRadius(screen: VideoFrame) {
+  private corner = { at: 0, w: 0, h: 0, r: 0, busy: false }
+  private probeCorner(screen: VideoFrame) {
+    const c = this.corner
     const now = performance.now()
-    if (now - this.corner.at < 2000 && this.corner.w === screen.displayWidth && this.corner.h === screen.displayHeight) return this.corner.r
-    const size = 96
-    const g = this.probe
-    g.clearRect(0, 0, size, size)
-    g.drawImage(screen, 0, 0, size, size, 0, 0, size, size)
-    const data = g.getImageData(0, 0, size, size).data
-    // Coin vide : transparent, ou noir pur selon la version de macOS.
-    const empty = (i: number) => data[i + 3] < 250 || (data[i] < 6 && data[i + 1] < 6 && data[i + 2] < 6)
-    let r = 0
-    while (r < size && empty((r * size + r) * 4)) r++
-    // Au-delà de ~40 px sur la diagonale, ce n'est pas un coin de fenêtre mais du contenu sombre : on n'y touche pas.
-    // Rayon du coin ≈ distance sur la diagonale / (1 − 1/√2).
-    this.corner = { at: now, w: screen.displayWidth, h: screen.displayHeight, r: r && r <= 40 ? Math.ceil(r / 0.29) + 1 : 0 }
-    return this.corner.r
+    if (c.busy || (now - c.at < 2000 && c.w === screen.displayWidth && c.h === screen.displayHeight)) return
+    Object.assign(c, { at: now, w: screen.displayWidth, h: screen.displayHeight, busy: true })
+    cornerDepth(screen)
+      // Au-delà de ~40 px sur la diagonale, ce n'est pas un coin de fenêtre mais du contenu sombre : on n'y touche pas.
+      // Rayon du coin ≈ distance sur la diagonale / (1 − 1/√2).
+      .then((d) => (c.r = d && d <= 40 ? Math.ceil(d / 0.29) + 1 : 0), () => (c.r = 0))
+      .finally(() => (c.busy = false))
   }
-  private corner = { at: 0, w: 0, h: 0, r: 0 }
-  private probe = Object.assign(document.createElement('canvas'), { width: 96, height: 96 }).getContext('2d', { willReadFrequently: true })!
 
+  /** Dessine l'écran (ajusté à la taille de la vidéo) et la bulle caméra en bas à gauche. */
   private draw() {
     const screen = this.screen
     if (!screen || !this.canvas.width) return
@@ -534,7 +543,8 @@ export class RecordingSession {
     ctx.drawImage(screen, x, y, dw, dh)
     // Coins arrondis de la fenêtre : on les remplit avec la même image très légèrement agrandie (les couleurs
     // du bord), seulement dans les quatre coins. La vidéo garde des angles droits ; seul le lecteur est arrondi.
-    const r = this.cornerRadius(screen)
+    if (this.surface === 'window') this.probeCorner(screen)
+    const r = this.surface === 'window' ? this.corner.r : 0
     if (r) {
       const s = 1 + (2.4 * r) / Math.min(screen.displayWidth, screen.displayHeight)
       ctx.save()
@@ -564,11 +574,18 @@ export class RecordingSession {
     }
   }
 
-  /** Compose l'image et l'envoie à l'encodeur (30 images par seconde au plus). */
-  private emit(force = false) {
+  /**
+   * Compose l'image et l'envoie à l'encodeur. L'écran donne la cadence (30 images par seconde au plus, réglé à la
+   * capture) : chacune de ses images est encodée. La caméra ne complète qu'entre deux images d'écran (écran immobile),
+   * et un tic répète la dernière image quand plus rien ne bouge.
+   */
+  private emit(source: 'screen' | 'cam' | 'tick') {
     if (!this.screen || !this.canvas.width) return
     const now = performance.now()
-    if (!force && now - this.lastEmit < 1000 / FPS - 2) return
+    if (source === 'screen') this.lastScreenAt = now
+    // La caméra ne complète que si l'écran est immobile depuis plus d'une image et demie (sinon deux images
+    // quasi simultanées seraient encodées), à 30 par seconde au plus.
+    if (source === 'cam' && (now - this.lastScreenAt < 1500 / FPS || now - this.lastEmit < 1000 / FPS - 2)) return
     this.lastEmit = now
     this.draw()
 
@@ -580,7 +597,7 @@ export class RecordingSession {
       this.dropped++
       return
     }
-    const t = this.timeAt(now)
+    const t = this.videoTime(source, now)
     const keyFrame = this.forceKeyFrame || t - this.lastKeyFrame >= KEYFRAME_EVERY
     if (keyFrame) {
       this.lastKeyFrame = t
@@ -590,11 +607,37 @@ export class RecordingSession {
     try {
       encoder.encode(frame, { keyFrame })
       this.stats.encoded++
+      if (import.meta.env.DEV) {
+        this.times.push(t)
+        this.diag.push({ src: source, t, wall: this.timeAt(now) })
+      }
     } catch (e) {
       this.failure ??= e
     } finally {
       frame.close()
     }
+  }
+
+  /**
+   * Moment de l'image dans la vidéo : l'horloge de capture de la source (régulière, même si la page a eu un
+   * instant de retard pour traiter l'image), recalée sur la chronologie de la vidéo ; toujours croissant.
+   */
+  private videoTime(source: 'screen' | 'cam' | 'tick', now: number) {
+    const wall = this.timeAt(now)
+    let t = wall
+    const frame = source === 'screen' ? this.screen : source === 'cam' ? this.cam : null
+    if (source !== 'tick' && frame) {
+      const o = this.frameOrigin[source]
+      t = o ? o.at + (frame.timestamp - o.ts) / 1e6 : wall
+      // Écart trop grand (reprise après une pause, horloge qui saute) : on se recale.
+      if (!o || Math.abs(t - wall) > 0.25) {
+        this.frameOrigin[source] = { ts: frame.timestamp, at: wall }
+        t = wall
+      }
+    }
+    t = Math.max(t, this.lastTime + 0.001)
+    this.lastTime = t
+    return t
   }
 
   /** Son : horodaté sur l'horloge de capture, recalé sur la chronologie de la vidéo. */
