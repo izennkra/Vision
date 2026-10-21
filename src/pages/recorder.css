@@ -262,3 +262,21 @@
 .pip__btn--stop span { width: 10px; height: 10px; background: var(--c-on-dark); border-radius: 2px; }
 .pip__spacer { flex: 1; }
 .pip__timer { height: 24px; width: auto; padding: var(--optical) 8px 0; }
+
+/* Alerte pendant l'enregistrement : micro ou caméra muets. */
+.rec__alert {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  z-index: 60;
+  transform: translateX(-50%);
+  padding: var(--optical) 14px 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-pill);
+  background: var(--c-orange);
+  color: var(--c-white);
+  font-size: var(--fs-body);
+  animation: ds-fade-in var(--t-fast) ease;
+}

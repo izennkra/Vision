@@ -16,7 +16,12 @@ export function usePip() {
     api.window?.close()
     const w = await api.requestWindow({ width, height })
     // Mêmes styles (police, couleurs, notes) que la page : les feuilles de style sont recopiées.
-    for (const el of document.querySelectorAll('link[rel="stylesheet"], style')) w.document.head.appendChild(el.cloneNode(true))
+    for (const el of document.querySelectorAll('link[rel="stylesheet"], style')) {
+      const copy = el.cloneNode(true) as HTMLLinkElement | HTMLStyleElement
+      // Adresse complète : la fenêtre flottante n'a pas d'adresse propre, un chemin relatif ne se chargerait pas.
+      if (copy instanceof HTMLLinkElement) copy.href = (el as HTMLLinkElement).href
+      w.document.head.appendChild(copy)
+    }
     w.document.body.style.cssText = 'margin:0;background:#f1f1f1;overflow:hidden'
     w.addEventListener('pagehide', () => setWin(null))
     setWin(w)

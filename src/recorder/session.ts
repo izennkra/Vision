@@ -103,6 +103,8 @@ function ticker(ms: number, onTick: () => void) {
   }
 }
 
+const liveTracks = (tracks: MediaStreamTrack[] | undefined) => (tracks ?? []).filter((t) => t.readyState === 'live')
+
 export const recordingSupported = () =>
   typeof VideoEncoder !== 'undefined' && typeof AudioEncoder !== 'undefined' && !!W.MediaStreamTrackProcessor
 
@@ -112,6 +114,13 @@ export class RecordingSession {
   onEnded: (() => void) | null = null
 
   private opts: SessionOptions
+  /**
+   * Copies de la caméra et du micro, faites dès le clic sur GO : l'enregistrement en est indépendant.
+   * (La page peut relancer ses propres flux, par exemple pendant le choix de l'écran : l'enregistrement
+   * gardait alors des flux arrêtés, d'où des vidéos sans son ni caméra.)
+   */
+  private camTrack: MediaStreamTrack | null = null
+  private micTracks: MediaStreamTrack[] = []
   private display: MediaStream | null = null
   /** Ce qui est réellement partagé (écran, fenêtre ou onglet), d'après le navigateur. */
   surface: Surface = 'window'
@@ -163,6 +172,8 @@ export class RecordingSession {
 
   constructor(opts: SessionOptions) {
     this.opts = opts
+    this.camTrack = liveTracks(opts.camera?.getVideoTracks())[0]?.clone() ?? null
+    this.micTracks = liveTracks(opts.mic?.getAudioTracks()).map((t) => t.clone())
     if (import.meta.env.DEV) (window as unknown as { __session?: RecordingSession }).__session = this
   }
 
@@ -367,16 +378,33 @@ export class RecordingSession {
     this.cam?.close()
     this.screen = this.cam = null
     this.display?.getTracks().forEach((t) => t.stop())
+    this.camTrack?.stop()
+    this.micTracks.forEach((t) => t.stop())
     this.audioCtx?.close()
     this.display = null
   }
+
+  /**
+   * Ce qui manque pendant l'enregistrement : rien reçu du micro ou de la caméra depuis 3 s
+   * (appareil débranché, coupé par le système…). Affiché à l'écran pour ne pas finir avec une vidéo muette.
+   */
+  get missing() {
+    if (!this.running || this.pausedAt !== null || performance.now() - this.startedAt < 3000) return { mic: false, cam: false }
+    const now = performance.now()
+    return {
+      mic: this.micTracks.length > 0 && now - this.lastAudioAt > 3000,
+      cam: !!this.camTrack && now - this.lastCamAt > 3000,
+    }
+  }
+  private lastAudioAt = 0
+  private lastCamAt = 0
 
   // --- Flux d'entrée ------------------------------------------------------------------------
 
   /** Son : micro + son de l'écran (si partagé), mélangés en une seule piste. */
   private prepareAudio() {
     const screenTracks = this.display?.getAudioTracks() ?? []
-    const micTracks = this.opts.mic?.getAudioTracks() ?? []
+    const micTracks = this.micTracks
     const tracks = [...screenTracks, ...micTracks]
     if (tracks.length === 0) return
     if (tracks.length === 1) {
@@ -384,6 +412,7 @@ export class RecordingSession {
       return
     }
     const ctx = new AudioContext()
+    void ctx.resume() // sans cela, un mélange créé hors d'un clic pourrait rester muet
     const dest = ctx.createMediaStreamDestination()
     // Qui parle ? Le micro, c'est toi ; le son de l'écran ou de l'onglet (Google Meet…), ce sont les autres.
     // On mesure le volume de chacun séparément pour séparer les voix dans la transcription.
@@ -441,7 +470,7 @@ export class RecordingSession {
     const Proc = W.MediaStreamTrackProcessor
     if (!Proc) throw new Error('Enregistrement non pris en charge par ce navigateur. Utilise Google Chrome.')
     const screenTrack = this.display!.getVideoTracks()[0]
-    const camTrack = this.opts.camera?.getVideoTracks()[0]?.clone() ?? null
+    const camTrack = this.camTrack
 
     this.pump<VideoFrame>(Proc, screenTrack, (f) => {
       this.screen?.close()
@@ -453,6 +482,7 @@ export class RecordingSession {
       this.pump<VideoFrame>(Proc, camTrack, (f) => {
         this.cam?.close()
         this.cam = f
+        this.lastCamAt = performance.now()
         this.stats.cam++
         this.emit('cam')
       })
@@ -644,6 +674,7 @@ export class RecordingSession {
   private onAudio(data: AudioData) {
     if (!this.running || this.pausedAt !== null || !this.audioSource) return data.close()
     const now = performance.now()
+    this.lastAudioAt = now
     const wall = this.timeAt(now)
     if (!this.audioOrigin) this.audioOrigin = { data: data.timestamp, at: wall }
     let t = this.audioOrigin.at + (data.timestamp - this.audioOrigin.data) / 1e6

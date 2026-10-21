@@ -67,10 +67,16 @@ export default function Recorder() {
 
   const active = state === 'recording' || state === 'paused'
 
-  // Chrono.
+  // Chrono, et alerte si le micro ou la caméra ne donnent plus rien (débranchés, coupés par le système).
+  const [missing, setMissing] = useState<string | null>(null)
   useEffect(() => {
-    if (!active) return
-    const t = window.setInterval(() => setElapsed(session.current?.duration ?? 0), 250)
+    if (!active) return setMissing(null)
+    const t = window.setInterval(() => {
+      const s = session.current
+      setElapsed(s?.duration ?? 0)
+      const m = s?.missing
+      setMissing(m?.mic && m.cam ? 'Ni son ni caméra reçus' : m?.mic ? 'Aucun son ne vient du micro' : m?.cam ? 'La caméra ne répond plus' : null)
+    }, 250)
     return () => window.clearInterval(t)
   }, [active])
 
@@ -95,7 +101,17 @@ export default function Recorder() {
     sounds.done()
     pip.close()
     const started = performance.now()
-    const video = await s.finish()
+    let video: Awaited<ReturnType<RecordingSession['finish']>> = null
+    try {
+      video = await s.finish()
+    } catch (e) {
+      // Jamais bloqué sur « Finalisation… » : on explique et on revient au départ.
+      session.current = null
+      s.dispose()
+      setState('idle')
+      setError(e instanceof Error ? e.message : 'L’enregistrement n’a pas pu être finalisé.')
+      return
+    }
     session.current = null
     if (!video) return setState('idle')
     setSaved(true)
@@ -130,7 +146,7 @@ export default function Recorder() {
     sounds.unlock()
     // La fenêtre flottante doit s'ouvrir pendant le clic (exigence du navigateur). Plus grande avec les notes.
     if (pipSupported) await pip.open(notesLive ? 380 : 220, notesLive ? 600 : 220).catch(() => null)
-    const { total } = await repo.listVideos({ search: 'Sans titre', limit: 1 })
+    const total = await repo.listVideos({ search: 'Sans titre', limit: 1 }).then((r) => r.total, () => 0)
     const s = new RecordingSession({
       surface,
       camera: devices.camera,
@@ -145,6 +161,7 @@ export default function Recorder() {
       whole = (await s.pickSource()) === 'monitor'
       setFullScreen(whole)
     } catch (e) {
+      s.dispose() // libère la caméra et le micro copiés pour l'enregistrement
       setState('idle')
       // Annulé par l'utilisateur : on referme tout. Sinon (clic « consommé » par la fenêtre flottante),
       // un second clic sur GO ouvre directement le sélecteur.
@@ -153,10 +170,14 @@ export default function Recorder() {
       return
     }
     // Pendant le décompte, tout se prépare (vidéo, fichier, encodeur) : au « GO », l'image démarre net.
-    const prepared = s.prepare().then(
-      () => null,
-      (e: unknown) => (e instanceof Error ? e : new Error('Enregistrement impossible')),
-    )
+    // Jamais plus de 20 s : sinon la page resterait bloquée sur le décompte, sans contrôle possible.
+    const prepared = Promise.race([
+      s.prepare().then(
+        () => null,
+        (e: unknown) => (e instanceof Error ? e : new Error('Enregistrement impossible')),
+      ),
+      wait(20_000).then(() => new Error('La préparation a pris trop de temps (connexion lente ?). Réessaie.')),
+    ])
     session.current = s // quitter la page pendant le décompte annule aussi la préparation
     if (!(await runCountdown())) {
       session.current = null
@@ -222,6 +243,7 @@ export default function Recorder() {
   return (
     <div className="rec">
       <ControlBar state={state} elapsed={elapsed} onStop={stop} onPause={togglePause} onRestart={restart} />
+      {missing && <div className="rec__alert" role="alert">{missing}</div>}
 
       <div className={`rec__panel${state === 'idle' ? '' : ' is-hidden'}`}>
         <button
@@ -265,17 +287,18 @@ export default function Recorder() {
         {micOn && (
           <div className={`rec__mictest${micTest.testing ? ' is-on' : ''}`}>
             <button className="ds-hover rec__mictest-btn" onClick={micTest.toggle} aria-pressed={micTest.testing}>
-              <IconVolume size={13} weight="fill" />
-              {micTest.testing ? 'Arrêter le test' : 'Tester le micro'}
+              {micTest.phase === 'listening' ? <IconMic size={13} weight="fill" /> : <IconVolume size={13} weight="fill" />}
+              {micTest.phase === 'listening' ? `Parle… ${micTest.left} s` : micTest.phase === 'playing' ? 'Écoute… (arrêter)' : 'Tester le micro'}
             </button>
-            {micTest.testing && (
+            {micTest.phase === 'listening' && (
               <>
                 <span className="rec__meter" aria-hidden>
                   {Array.from({ length: 10 }, (_, i) => <i key={i} className={micTest.level * 10 >= i + 0.5 ? 'is-lit' : ''} />)}
                 </span>
-                <p className="rec__mictest-hint">Parle : tu t’entends comme tes clients t’entendront.</p>
+                <p className="rec__mictest-hint">Dis quelques mots : tu vas les réentendre tels que tes clients les entendront.</p>
               </>
             )}
+            {micTest.phase === 'playing' && <p className="rec__mictest-hint">Voilà ce que donne ton micro dans la vidéo.</p>}
           </div>
         )}
         <button
@@ -334,6 +357,7 @@ export default function Recorder() {
             onPause={togglePause}
             onStop={stop}
             notes={notesLive ? notes : null}
+            missing={missing}
             captured={fullScreen && notesLive}
             onScale={(d) => updateNotes({ scale: Math.min(SCALE_MAX, Math.max(SCALE_MIN, notes.scale + d)) })}
             onHideNotes={() => {
@@ -381,6 +405,21 @@ function ControlBar({ state, elapsed, onStop, onPause, onRestart }: BarProps) {
     }
   })
   const bar = useRef<HTMLDivElement>(null)
+  // Position mémorisée sur un écran plus grand, fenêtre réduite : la barre est ramenée dans l'écran
+  // (elle pouvait rester hors de vue, et on ne pouvait plus arrêter l'enregistrement).
+  useEffect(() => {
+    const fit = () =>
+      setPos((p) => {
+        const el = bar.current
+        if (!p || !el) return p
+        const x = Math.min(Math.max(0, p.x), Math.max(0, window.innerWidth - el.offsetWidth))
+        const y = Math.min(Math.max(0, p.y), Math.max(0, window.innerHeight - el.offsetHeight))
+        return x === p.x && y === p.y ? p : { x, y }
+      })
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
   const recording = state === 'recording' || state === 'paused'
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -464,17 +503,25 @@ interface PipProps {
   captured: boolean
   onScale: (delta: number) => void
   onHideNotes: () => void
+  /** Alerte : micro ou caméra muets. */
+  missing: string | null
 }
 
 /**
  * Contenu de la fenêtre flottante. Sans notes : la bulle et, au survol, pause / arrêt (styles en ligne).
  * Avec notes : les notes en haut, et en bas la caméra, la taille du texte, pause, chrono et arrêt.
  */
-function PipBubble({ stream, filter, state, count, elapsed, onPause, onStop, notes, captured, onScale, onHideNotes }: PipProps) {
+function PipBubble({ stream, filter, state, count, elapsed, onPause, onStop, notes, captured, onScale, onHideNotes, missing }: PipProps) {
   const [hover, setHover] = useState(false)
+  const alert = missing && (
+    <div style={{ position: 'absolute', top: 8, left: 8, right: 8, zIndex: 2, padding: '5px 8px', borderRadius: 999, background: '#f24822', color: '#fff', fontSize: 11, textAlign: 'center' }}>
+      {missing}
+    </div>
+  )
   if (notes) {
     return (
       <div className="pip">
+        {alert}
         <div className="pip__notes"><NotesSheet doc={notes} /></div>
         {captured && <div className="pip__warn">Écran entier : cette fenêtre apparaît dans la vidéo.</div>}
         <div className="pip__bar">
@@ -516,6 +563,7 @@ function PipBubble({ stream, filter, state, count, elapsed, onPause, onStop, not
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
+      {alert}
       {stream && (
         <div style={{ width: '100vmin', height: '100vmin', borderRadius: '50%', overflow: 'hidden' }}>
           <CameraVideo stream={stream} filter={filter} />
